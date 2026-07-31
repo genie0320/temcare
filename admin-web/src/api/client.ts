@@ -45,3 +45,23 @@ export const apiGet = <T,>(path: string) => request<T>('GET', path)
 export const apiPost = <T,>(path: string, body?: unknown) => request<T>('POST', path, body)
 export const apiPatch = <T,>(path: string, body?: unknown) => request<T>('PATCH', path, body)
 export const apiDelete = (path: string) => request<void>('DELETE', path)
+
+// multipart 업로드는 Content-Type을 브라우저가 boundary와 함께 자동으로 붙여야 하므로
+// request()의 JSON 헤더 로직을 타지 않는다.
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  const csrfToken = readCookie('csrftoken')
+  if (csrfToken) headers['X-CSRFToken'] = csrfToken
+
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: formData,
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null)
+    throw new ApiError(res.status, detail)
+  }
+  return res.json() as Promise<T>
+}

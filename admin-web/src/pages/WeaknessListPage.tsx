@@ -47,6 +47,7 @@ export function WeaknessListPage() {
     {
       key: 'status',
       label: '상태',
+      width: '80px',
       render: (w) => <StatusBadge status={w.status} />,
     },
   ]

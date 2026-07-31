@@ -1,7 +1,10 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AdminLayout } from './components/AdminLayout'
+import { DesignSystemPage } from './pages/DesignSystemPage'
 import { LoginPage } from './pages/LoginPage'
+import { NutrientDetailPage } from './pages/NutrientDetailPage'
+import { NutrientListPage } from './pages/NutrientListPage'
 import { TemTypeDetailPage } from './pages/TemTypeDetailPage'
 import { TemTypeListPage } from './pages/TemTypeListPage'
 import { WeaknessDetailPage } from './pages/WeaknessDetailPage'
@@ -38,6 +41,9 @@ function App() {
           <Route path="/content/weaknesses/:id" element={<WeaknessDetailPage />} />
           <Route path="/content/tem-types" element={<TemTypeListPage />} />
           <Route path="/content/tem-types/:id" element={<TemTypeDetailPage />} />
+          <Route path="/content/nutrients" element={<NutrientListPage />} />
+          <Route path="/content/nutrients/:id" element={<NutrientDetailPage />} />
+          <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

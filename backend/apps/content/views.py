@@ -1,17 +1,25 @@
+import os
 import re
+import uuid
 
+from django.core.files.storage import default_storage
 from django.db.models import Q
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from apps.accounts.models import AdminPermission
 from apps.accounts.permissions import AdminResourcePermission
 
 from .models import (
     Food,
     HerbCard,
     Illness,
+    Nutrient,
     NutrientCard,
+    NutrientCardWeakness,
     TemType,
     TemTypeCuration,
     TemTypeIllness,
@@ -20,6 +28,8 @@ from .models import (
 )
 from .serializers import (
     IllnessOptionSerializer,
+    NutrientDetailSerializer,
+    NutrientListSerializer,
     TemTypeDetailSerializer,
     TemTypeListSerializer,
     WeaknessDetailSerializer,
@@ -28,6 +38,7 @@ from .serializers import (
 
 _WEAK_ID_RE = re.compile(r"^WEAK-(\d+)$")
 _TEM_ID_RE = re.compile(r"^TEM(\d+)$")
+_NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -46,6 +57,15 @@ def _next_tem_type_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"TEM{max_n + 1:02d}"
+
+
+def _next_nutrient_id() -> str:
+    max_n = 0
+    for nid in Nutrient.objects.values_list("id", flat=True):
+        m = _NUT_ID_RE.match(nid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"NUT-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -236,3 +256,117 @@ class IllnessOptionsView(APIView):
     def get(self, request):
         illnesses = Illness.objects.order_by("sort")
         return Response(IllnessOptionSerializer(illnesses, many=True).data)
+
+
+class NutrientViewSet(ModelViewSet):
+    """영양소 마스터(adm_022). docs/05_screen_conventions.md §C 반복 카드 리스트 —
+    마스터 1건(영양소) + 하위 카드 N건(관점별), 카드마다 약점 n:m.
+    """
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_022"
+    queryset = Nutrient.objects.all()
+
+    def get_serializer_class(self):
+        return NutrientListSerializer if self.action == "list" else NutrientDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) | Q(id__icontains=search) | Q(cards__perspective__icontains=search)
+            )
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(cards__weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_nutrient_id(), updated_by=self._actor_label())
+        self._sync_cards(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_cards(instance)
+
+    def _sync_cards(self, instance):
+        """관점 카드를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
+        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4). NutrientCard는
+        AuditedModel이라 이 delete()·create() 각각이 감사로그에 남는다.
+        """
+        data = self.request.data
+        if "cards" not in data:
+            return
+        for card in list(instance.cards.all()):
+            card.delete()
+        for i, item in enumerate(data.get("cards") or []):
+            perspective = (item.get("perspective") or "").strip()
+            description = (item.get("description") or "").strip()
+            weakness_ids = item.get("weakness_ids") or []
+            if not perspective and not description and not weakness_ids:
+                continue
+            card = NutrientCard.objects.create(
+                nutrient=instance, perspective=perspective, description=description, sort=i
+            )
+            for wid in weakness_ids:
+                NutrientCardWeakness.objects.create(card=card, weakness_id=wid)
+
+
+class NutrientPerspectiveOptionsView(APIView):
+    """관점 카드 입력란의 자동완성 후보(spec adm_022 3행: 자유텍스트+기존값 자동완성)."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_022"
+    required_action = "read"
+
+    def get(self, request):
+        values = NutrientCard.objects.exclude(perspective="").values_list("perspective", flat=True)
+        return Response(sorted(set(values)))
+
+
+_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+_ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+class ImageUploadView(APIView):
+    """관리자 화면 공통 이미지 업로드. docs/04_design_system.md §4 — 파일 스토리지에
+    저장하고 경로(URL)만 돌려준다. 어느 화면(resource)에서 왔는지는 요청 본문으로
+    받아 그 리소스의 write 권한을 검사한다(화면마다 전용 뷰를 새로 만들지 않기 위함).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        resource = request.data.get("resource")
+        file = request.FILES.get("file")
+        if not resource or not file:
+            return Response({"detail": "resource, file은 필수다."}, status=status.HTTP_400_BAD_REQUEST)
+        if file.content_type not in _ALLOWED_IMAGE_TYPES:
+            return Response({"detail": "이미지 파일만 업로드할 수 있다."}, status=status.HTTP_400_BAD_REQUEST)
+        if file.size > _MAX_UPLOAD_BYTES:
+            return Response({"detail": "5MB를 넘는 파일은 업로드할 수 없다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        has_write = (
+            hasattr(user, "admin_profile")
+            and AdminPermission.objects.filter(
+                role_id=user.admin_profile.role_id, resource=resource, action="write", allowed=True
+            ).exists()
+        )
+        if not has_write:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext not in _ALLOWED_IMAGE_EXTS:
+            ext = ".png"
+        saved_path = default_storage.save(f"{resource}/{uuid.uuid4().hex}{ext}", file)
+        return Response({"url": default_storage.url(saved_path)}, status=status.HTTP_201_CREATED)

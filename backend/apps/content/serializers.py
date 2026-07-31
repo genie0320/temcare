@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Illness, TemType, Weakness
+from .models import Illness, Nutrient, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -114,3 +114,59 @@ class IllnessOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Illness
         fields = ["id", "name"]
+
+
+class NutrientListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_022). 약점 태그는 카드들이 물고 있는 것을 모아 보여준다."""
+
+    weakness_names = serializers.SerializerMethodField()
+    card_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Nutrient
+        fields = ["id", "name", "status", "weakness_names", "card_count", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(
+            Weakness.objects.filter(nutrient_cards__nutrient=obj)
+            .distinct()
+            .order_by("sort")
+            .values_list("name", flat=True)
+        )
+
+    def get_card_count(self, obj):
+        return obj.cards.count()
+
+
+class NutrientDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_022). 관점 카드는 모델 필드가 아니므로 읽기는 SerializerMethodField,
+    쓰기는 뷰(NutrientViewSet._sync_cards)에서 request.data를 직접 받아 처리한다.
+    """
+
+    cards = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Nutrient
+        fields = [
+            "id",
+            "name",
+            "image",
+            "status",
+            "sort",
+            "cards",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_cards(self, obj):
+        return [
+            {
+                "id": card.id,
+                "perspective": card.perspective,
+                "description": card.description,
+                "weakness_ids": list(card.weaknesses.values_list("id", flat=True)),
+            }
+            for card in obj.cards.all()
+        ]

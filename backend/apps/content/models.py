@@ -136,7 +136,7 @@ class TemTypeCuration(models.Model):
 class Nutrient(MasterModel):
     id = models.CharField(max_length=20, primary_key=True)
     name = models.CharField(max_length=100)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
 
     class Meta(MasterModel.Meta):
         db_table = "nutrient"
@@ -177,7 +177,7 @@ class Herb(MasterModel):
     id = models.CharField(max_length=20, primary_key=True)
     name = models.CharField(max_length=100)
     hanja = models.CharField(max_length=100, blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
 
     class Meta(MasterModel.Meta):
         db_table = "herb"
@@ -220,7 +220,7 @@ class Food(MasterModel):
     component = models.CharField(max_length=200, blank=True)  # 핵심성분
     foods = models.TextField(blank=True)  # 식품 목록
     description = models.TextField(blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     weaknesses = models.ManyToManyField(
         Weakness, through="FoodWeakness", related_name="foods", blank=True
     )
@@ -248,7 +248,7 @@ class Point(MasterModel):
     description = models.TextField(blank=True)
     location = models.CharField(max_length=200, blank=True)
     tip = models.TextField(blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     video = models.CharField(max_length=255, blank=True)
     weaknesses = models.ManyToManyField(
         Weakness, through="PointWeakness", related_name="points", blank=True
@@ -280,7 +280,7 @@ class Article(MasterModel):
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default="식이")
     title = models.CharField(max_length=200)
     body = models.TextField(blank=True)  # HTML
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     video = models.CharField(max_length=255, blank=True)
     weaknesses = models.ManyToManyField(
         Weakness, through="ArticleWeakness", related_name="articles", blank=True
@@ -341,7 +341,7 @@ class HealthSign(MasterModel):
     id = models.CharField(max_length=20, primary_key=True)
     name = models.CharField(max_length=100)
     note = models.TextField(blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     weaknesses = models.ManyToManyField(
         Weakness, through="HealthSignWeakness", related_name="health_signs", blank=True
     )
@@ -370,7 +370,7 @@ class Illness(MasterModel):
     name = models.CharField(max_length=100)
     category = models.CharField(max_length=100, blank=True)  # 보존 · 현재 UI 미노출
     description = models.TextField(blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     weaknesses = models.ManyToManyField(
         Weakness, through="IllnessWeakness", related_name="illnesses", blank=True
     )
@@ -398,7 +398,7 @@ class Product(MasterModel):
     id = models.CharField(max_length=20, primary_key=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    image = models.CharField(max_length=255, blank=True)
+    image = models.CharField(max_length=255, blank=True)  # 파일 스토리지 경로/URL. docs/04_design_system.md §4 — base64 인라인 금지.
     url = models.CharField(max_length=500, blank=True)
 
     class Meta(MasterModel.Meta):

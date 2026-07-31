@@ -5,10 +5,10 @@ import { apiGet } from '../api/client'
 import { DataTable, type Column } from '../components/DataTable'
 import { PageHead } from '../components/PageHead'
 import { StatusBadge } from '../components/StatusBadge'
-import type { TemTypeListItem } from '../types/temType'
+import type { NutrientListItem } from '../types/nutrient'
 import type { WeaknessListItem } from '../types/weakness'
 
-export function TemTypeListPage() {
+export function NutrientListPage() {
   const [search, setSearch] = useState('')
   const [weakness, setWeakness] = useState('')
   const [status, setStatus] = useState('')
@@ -20,71 +20,72 @@ export function TemTypeListPage() {
   })
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['tem-types', search, weakness, status],
+    queryKey: ['nutrients', search, weakness, status],
     queryFn: () => {
       const params = new URLSearchParams()
       if (search) params.set('search', search)
       if (weakness) params.set('weakness', weakness)
       if (status) params.set('status', status)
       const qs = params.toString()
-      return apiGet<TemTypeListItem[]>(`/content/tem-types/${qs ? `?${qs}` : ''}`)
+      return apiGet<NutrientListItem[]>(`/content/nutrients/${qs ? `?${qs}` : ''}`)
     },
   })
 
-  const columns: Column<TemTypeListItem>[] = [
+  const columns: Column<NutrientListItem>[] = [
     {
       key: 'name',
-      label: '체질',
-      render: (t) => (
+      label: '영양소',
+      render: (n) => (
         <>
-          <span className="name">{t.name}</span> <span className="muted">{t.id}</span>
+          <span className="name">{n.name}</span> <span className="muted">{n.id}</span>
         </>
       ),
     },
     {
       key: 'weakness_names',
       label: '약점 태그',
-      render: (t) =>
-        t.weakness_names.length ? (
+      render: (n) =>
+        n.weakness_names.length ? (
           <div className="chips">
-            {t.weakness_names.map((n) => (
-              <span key={n} className="chip">
-                {n}
+            {n.weakness_names.map((name) => (
+              <span key={name} className="chip">
+                {name}
               </span>
             ))}
           </div>
         ) : (
-          <span className="chip off">무결형</span>
+          <span className="muted">—</span>
         ),
     },
     {
-      key: 'nickname',
-      label: '별명',
-      render: (t) => <span className="muted">{t.nickname || '—'}</span>,
+      key: 'card_count',
+      label: '카드수',
+      width: '90px',
+      render: (n) => <span className="muted">{n.card_count}개</span>,
     },
     {
       key: 'status',
       label: '상태',
       width: '80px',
-      render: (t) => <StatusBadge status={t.status} />,
+      render: (n) => <StatusBadge status={n.status} />,
     },
   ]
 
   return (
     <>
       <PageHead
-        title="64유형 마스터"
-        description="64개 체질을 관리한다. 각 체질에 약점 태그를 배정하고, 노출할 콘텐츠를 큐레이션한다."
+        title="영양소 마스터"
+        description="영양소를 한 번 등록하면 약점 태그로 여러 체질에 재사용된다. 같은 영양소도 약점별 관점(카드)이 다르다."
         actions={
-          <button className="btn primary" onClick={() => navigate('/content/tem-types/new')}>
-            + 새 체질
+          <button className="btn primary" onClick={() => navigate('/content/nutrients/new')}>
+            + 새 영양소
           </button>
         }
       />
       <div className="card">
         <div className="toolbar">
           <div className="search">
-            <input placeholder="체질명·코드·별명 검색" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input placeholder="영양소명·ID·관점 검색" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <select className="selectbox" value={weakness} onChange={(e) => setWeakness(e.target.value)}>
             <option value="">약점 전체</option>
@@ -109,9 +110,9 @@ export function TemTypeListPage() {
           <DataTable
             columns={columns}
             rows={data ?? []}
-            rowKey={(t) => t.id}
-            onRowClick={(t) => navigate(`/content/tem-types/${t.id}`)}
-            emptyLabel="등록된 체질이 없다."
+            rowKey={(n) => n.id}
+            onRowClick={(n) => navigate(`/content/nutrients/${n.id}`)}
+            emptyLabel="등록된 영양소가 없다."
           />
         )}
       </div>

@@ -211,3 +211,149 @@ def test_tem_type_write_denied_without_adm_002_permission():
 
     resp = client.post("/api/content/tem-types/", {"name": "TE-1"}, format="json")
     assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_nutrient_create_with_cards():
+    user = _make_admin("editor", [("adm_022", "read"), ("adm_022", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+
+    resp = client.post(
+        "/api/content/nutrients/",
+        {
+            "name": "비타민 B-complex",
+            "cards": [
+                {"perspective": "대사회복", "description": "에너지 대사를 돕는다", "weakness_ids": [w1.id, w2.id]},
+                {"perspective": "신경안정", "description": "신경 전달을 돕는다", "weakness_ids": [w2.id]},
+            ],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "NUT-01"  # 서버 채번
+    assert len(body["cards"]) == 2
+    assert body["cards"][0]["perspective"] == "대사회복"
+    assert set(body["cards"][0]["weakness_ids"]) == {w1.id, w2.id}
+
+    nutrient = Nutrient.objects.get(id="NUT-01")
+    assert nutrient.cards.count() == 2
+
+
+@pytest.mark.django_db
+def test_nutrient_update_replaces_cards_not_appends():
+    user = _make_admin("editor", [("adm_022", "read"), ("adm_022", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    nutrient = Nutrient.objects.create(id="NUT-01", name="비타민 D")
+    old_card = NutrientCard.objects.create(nutrient=nutrient, perspective="옛 관점")
+    old_card.weaknesses.add(w1)
+
+    resp = client.patch(
+        "/api/content/nutrients/NUT-01/",
+        {"cards": [{"perspective": "새 관점", "description": "새 설명", "weakness_ids": [w1.id]}]},
+        format="json",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["cards"]) == 1
+    assert body["cards"][0]["perspective"] == "새 관점"
+    assert not NutrientCard.objects.filter(perspective="옛 관점").exists()
+
+
+@pytest.mark.django_db
+def test_nutrient_list_shows_weakness_names_and_card_count():
+    user = _make_admin("editor", [("adm_022", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    nutrient = Nutrient.objects.create(id="NUT-01", name="비타민 D")
+    card = NutrientCard.objects.create(nutrient=nutrient, perspective="관점")
+    card.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/nutrients/")
+    assert resp.status_code == 200
+    body = resp.json()[0]
+    assert body["weakness_names"] == ["추위"]
+    assert body["card_count"] == 1
+
+
+@pytest.mark.django_db
+def test_nutrient_delete_cascades_cards_and_is_audited():
+    user = _make_admin("editor", [("adm_022", "read"), ("adm_022", "write"), ("adm_022", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    nutrient = Nutrient.objects.create(id="NUT-01", name="비타민 D")
+    card = NutrientCard.objects.create(nutrient=nutrient, perspective="관점")
+    card_id = card.id
+
+    resp = client.delete("/api/content/nutrients/NUT-01/")
+    assert resp.status_code == 204
+    assert not Nutrient.objects.filter(id="NUT-01").exists()
+    assert not NutrientCard.objects.filter(id=card_id).exists()
+    assert AuditLog.objects.filter(target_table="nutrient_card", target_id=str(card_id), action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_nutrient_write_denied_without_adm_022_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/nutrients/", {"name": "비타민 D"}, format="json")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_image_upload_saves_file_and_returns_url(tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.MEDIA_ROOT = tmp_path
+    user = _make_admin("editor", [("adm_022", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    png_bytes = bytes.fromhex(
+        "89504e470d0a1a0a0000000d494844520000000100000001080600000"
+        "01f15c4890000000a49444154789c6360000002000155ff0f2a0000000049454e44ae426082"
+    )
+    upload = SimpleUploadedFile("pic.png", png_bytes, content_type="image/png")
+
+    resp = client.post("/api/content/image-upload/", {"resource": "adm_022", "file": upload}, format="multipart")
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["url"].startswith("/media/adm_022/")
+
+
+@pytest.mark.django_db
+def test_image_upload_denied_without_write_permission(tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.MEDIA_ROOT = tmp_path
+    user = _make_admin("viewer", [("adm_022", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    upload = SimpleUploadedFile("pic.png", b"not-a-real-png", content_type="image/png")
+    resp = client.post("/api/content/image-upload/", {"resource": "adm_022", "file": upload}, format="multipart")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_image_upload_rejects_non_image_content_type(tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.MEDIA_ROOT = tmp_path
+    user = _make_admin("editor", [("adm_022", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    upload = SimpleUploadedFile("evil.sh", b"#!/bin/sh\necho hi", content_type="application/x-sh")
+    resp = client.post("/api/content/image-upload/", {"resource": "adm_022", "file": upload}, format="multipart")
+    assert resp.status_code == 400

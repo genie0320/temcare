@@ -4,6 +4,8 @@ export interface Column<T> {
   key: string
   label: string
   render: (row: T) => ReactNode
+  /** 상태·최종수정처럼 모든 목록에 공통으로 나오는 열은 폭을 고정한다(예: '80px'). */
+  width?: string
 }
 
 interface DataTableProps<T> {
@@ -49,7 +51,9 @@ export function DataTable<T>({
               <tr>
                 <th className="col-no">No.</th>
                 {columns.map((col) => (
-                  <th key={col.key}>{col.label}</th>
+                  <th key={col.key} style={col.width ? { width: col.width } : undefined}>
+                    {col.label}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -58,7 +62,9 @@ export function DataTable<T>({
                 <tr key={rowKey(row)} className={onRowClick ? 'clickable' : ''} onClick={() => onRowClick?.(row)}>
                   <td className="col-no">{total - ((clampedPage - 1) * pageSize + i)}</td>
                   {columns.map((col) => (
-                    <td key={col.key}>{col.render(row)}</td>
+                    <td key={col.key} style={col.width ? { width: col.width } : undefined}>
+                      {col.render(row)}
+                    </td>
                   ))}
                 </tr>
               ))}

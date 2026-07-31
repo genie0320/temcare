@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework.decorators import api_view, permission_classes
@@ -19,3 +21,7 @@ urlpatterns = [
     path("api/accounts/", include("apps.accounts.urls")),
     path("api/content/", include("apps.content.urls")),
 ]
+
+if settings.DEBUG:
+    # 로컬 개발 전용. 배포(§10-1)에서는 nginx가 MEDIA_URL을 직접 서빙한다.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -9,6 +9,14 @@ const NAV = [
       { to: '/content/weaknesses', icon: '🏷️', label: '약점태그 마스터' },
     ],
   },
+  {
+    group: '콘텐츠 관리',
+    items: [{ to: '/content/nutrients', icon: '💊', label: '영양소 마스터' }],
+  },
+  {
+    group: '시스템',
+    items: [{ to: '/system/design', icon: '🎨', label: '디자인 시스템' }],
+  },
 ]
 
 export function AdminLayout() {

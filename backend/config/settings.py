@@ -94,6 +94,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ── 업로드 이미지. docs/04_design_system.md §4 — 파일 스토리지에 저장하고 경로만
+# DB에 남긴다(base64 인라인 금지). 정식 배포 전환(§10-1) 시 오브젝트 스토리지로
+# 바꾸되, 지금은 로컬 디스크로 충분하다(§10-0).
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # ── DRF: 기본 거부. docs/08_tech_stack.md §5 ─────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
