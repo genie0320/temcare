@@ -75,7 +75,7 @@ def _seed_content(stdout, style):
         return {k: ("" if v is None else v) for k, v in dict(row).items()}
 
     for table, model in _SIMPLE_TABLES:
-        cur.execute(f"SELECT * FROM {table}")
+        cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _SIMPLE_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
             data = _row_dict(row)
@@ -85,7 +85,7 @@ def _seed_content(stdout, style):
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
     for table, model, fk_col, fk_field in _CARD_TABLES:
-        cur.execute(f"SELECT * FROM {table}")
+        cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _CARD_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
             data = _row_dict(row)
@@ -97,7 +97,7 @@ def _seed_content(stdout, style):
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
     for table, through, fk_col, fk_field, _fk_model in _WEAKNESS_JOIN_TABLES:
-        cur.execute(f"SELECT * FROM {table}")
+        cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _WEAKNESS_JOIN_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
             through.objects.get_or_create(**{fk_field + "_id": row[fk_col], "weakness_id": row["weakness_id"]})
@@ -105,7 +105,7 @@ def _seed_content(stdout, style):
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
     for table, through, fk_col, fk_field, _fk_model in _ARTICLE_LINK_TABLES:
-        cur.execute(f"SELECT * FROM {table}")
+        cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _ARTICLE_LINK_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
             through.objects.get_or_create(article_id=row["article_id"], **{fk_field + "_id": row[fk_col]})
