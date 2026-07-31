@@ -2,6 +2,17 @@
 
 > 순서에 근거가 있다. 임의로 바꾸면 나중에 되돌아가야 하는 지점이 있다.
 
+## 지금 상태 (세션 인수인계 — 2026-07-31 마지막 업데이트)
+
+**M0 체크포인트 1 완료.** 저장소 뼈대(백엔드+프론트 둘 다) + 감사로그·권한·판별 어댑터 핵심 골격 + CI가 GitHub에 올라가 있고 전부 초록불이다.
+
+- **GitHub**: https://github.com/genie0320/temcare (main 브랜치, 커밋 4개, 전부 push 완료, CI 통과)
+- **바로 이어서 할 일**: 체크포인트 2 — 실제 관리자 로그인 화면 + 콘텐츠 마스터 CRUD 화면(M1) 만들기 시작
+- **이 컴퓨터(`Genie-Blue`, 8GB RAM)에 설치된 도구**: Python 3.12 · Node.js LTS · uv · GNU Make(`ezwinports.make`) · GitHub CLI(`gh`, 인증됨) — 전부 winget으로 설치, PATH는 터미널 재시작해야 새로 인식됨(설치 직후만 해당)
+- **로컬 개발 명령**: `make setup`(최초 1회) → `make dev`(관리자 화면) 또는 `make dev-app`(고객 화면). Docker 안 씀 — DB는 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16)
+- **아직 안 한 것**: 콘텐츠 마스터(`schema/01_content_master.sql`)를 실제 Django 모델로 옮기기, 개발 전용 빠른 로그인, 관리자 화면 자체(지금은 "백엔드 연결 ok"만 뜨는 빈 페이지)
+- 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #16까지).
+
 ## M0 — 기반 (여기가 제일 중요하다)
 
 **이 단계를 건너뛰면 나중에 전 코드를 다시 만져야 한다.**
