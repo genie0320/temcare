@@ -170,7 +170,8 @@ make dev                      # 마이그레이션 + 시드 + Django + Vite 동�
 
 **설정**
 - [x] `DEBUG=False`, `ALLOWED_HOSTS` 지정, `SECRET_KEY`는 환경변수
-- [x] `SECURE_SSL_REDIRECT` · `SESSION_COOKIE_SECURE` · `CSRF_COOKIE_SECURE` · `SECURE_HSTS_SECONDS`
+- [x] `SESSION_COOKIE_SECURE` · `CSRF_COOKIE_SECURE`
+- [ ] `SECURE_SSL_REDIRECT` · `SECURE_HSTS_SECONDS` — **의도적으로 기본 False.** DEBUG=False일 때 자동으로 켰더니 CI 테스트가 301로 전부 실패했다(2026-07-31, nginx가 TLS를 종료하는 배포 구조와 안 맞음). 실제 배포에서 nginx의 `X-Forwarded-Proto`와 `SECURE_PROXY_SSL_HEADER`를 같이 설정할 때 켠다(§10-1). `check --deploy`는 이 상태에서 경고(W004/W008)만 내고 통과한다
 - [x] `SESSION_COOKIE_HTTPONLY` · `SAMESITE=Lax`
 - [x] `python manage.py check --deploy` 통과 (CI에서 매번 확인)
 - [x] 시크릿은 코드·저장소에 없음 (`.env`는 `.gitignore`, gitleaks가 CI에서 추가 확인)

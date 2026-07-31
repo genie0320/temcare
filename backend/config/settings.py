@@ -111,10 +111,17 @@ SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
 
 # ── 배포 보안 기본값. docs/08_tech_stack.md §9 "manage.py check --deploy 통과" ──
-SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
-SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0 if DEBUG else 31536000)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG
+# ★ SECURE_SSL_REDIRECT를 DEBUG=False일 때 자동으로 켰더니 CI의 테스트 클라이언트가
+# 전부 301로 튕겨나가 실패했다(2026-07-31). 우리 배포 구조(§10-1)는 nginx가 TLS를
+# 종료하고 Django엔 평문 HTTP로 넘기므로, 여기서 무작정 True로 켜면 오히려
+# SECURE_PROXY_SSL_HEADER 없이는 리다이렉트 루프가 날 수 있다. 그래서 기본은 False로
+# 두고, 실제 배포에서 nginx가 X-Forwarded-Proto를 보내도록 설정한 뒤
+# SECURE_PROXY_SSL_HEADER와 함께 환경변수로만 켠다. check --deploy는 이 상태에서
+# W008 경고만 내고 통과한다(경고는 실패 아님).
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
 
 # ── 판별 어댑터 기본값. docs/02_architecture_constraints.md §3 ──
 DIAGNOSIS_PROVIDER = env("DIAGNOSIS_PROVIDER", default="mock")
