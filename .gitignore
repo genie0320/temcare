@@ -1,0 +1,23 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+backend/db.sqlite3
+backend/.env
+.pytest_cache/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+admin-web/.env
+app-web/.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code — 이 컴퓨터에서만 쓰는 권한 설정, 공유 저장소엔 안 올린다
+.claude/settings.local.json
