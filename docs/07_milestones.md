@@ -2,15 +2,24 @@
 
 > 순서에 근거가 있다. 임의로 바꾸면 나중에 되돌아가야 하는 지점이 있다.
 
-## 지금 상태 (세션 인수인계 — 2026-07-31 마지막 업데이트)
+## 지금 상태 (세션 인수인계 — 2026-07-31 저녁 업데이트, 체크포인트 2 완료)
 
-**M0 체크포인트 1 완료.** 저장소 뼈대(백엔드+프론트 둘 다) + 감사로그·권한·판별 어댑터 핵심 골격 + CI가 GitHub에 올라가 있고 전부 초록불이다.
+**M0 완료 + M1 첫 화면(약점) 실동작.** 콘텐츠 마스터 26테이블 전부 Django 모델로 옮겼고, 관리자 로그인(실로그인 + 개발용 빠른 로그인)과 약점(adm_003) 목록·상세 CRUD가 브라우저에서 끝까지 확인됐다.
 
-- **GitHub**: https://github.com/genie0320/temcare (main 브랜치, 커밋 4개, 전부 push 완료, CI 통과)
-- **바로 이어서 할 일**: 체크포인트 2 — 실제 관리자 로그인 화면 + 콘텐츠 마스터 CRUD 화면(M1) 만들기 시작
+- **바로 이어서 할 일**: M1 순서대로 다음 화면(64유형 adm_002)부터 — `WeaknessListPage`/`WeaknessDetailPage` + `PublishBox`/`MetaPanel`/`DataTable`/`FormControls` 등 `admin-web/src/components/`의 공통 컴포넌트를 그대로 조립하면 된다(약점 화면을 "첫 화면"으로 잡은 이유가 이것). 백엔드도 `apps/content/views.py`의 `WeaknessViewSet` + `apps/accounts/permissions.py`의 `AdminResourcePermission`(ViewSet용 `resource_action_map` 자동 매핑) 패턴을 그대로 복붙 확장하면 된다.
+- **이번 세션에 한 일**:
+  - `apps/content/models.py` — schema/01_content_master.sql의 26개 테이블 전부 Django 모델로(약점·64유형·영양소·약재·식품군·혈자리·요법·건강신호·예측질환·제품 + 전 join 테이블). 마이그레이션 적용 완료.
+  - `seed_demo`가 `prototype/ollacare.sqlite`에서 콘텐츠 마스터를 실제로 읽어 넣는다(멱등 확인됨). `make setup` → `make dev`로 뜨는 화면에 진짜 시드 데이터가 보인다.
+  - `apps/accounts/views.py` — 관리자 로그인(`/api/accounts/login/`, 이메일+비밀번호) + 개발용 빠른 로그인(`/api/accounts/dev-login/`, DEBUG 전용, 404로 프로덕션 차단) + `/me/` + `/logout/` + `/csrf/`.
+  - `apps/content/` — 약점(adm_003) 목록·상세 API(`WeaknessViewSet`), 화이트리스트 시리얼라이저 2종(목록/상세 분리), ID는 서버가 `WEAK-##` 자동 채번.
+  - `AdminResourcePermission`을 ViewSet에서도 쓸 수 있게 확장(action→resource action 자동 매핑). ★ DRF `ViewSetMixin`이 이미 `action_map`을 내부적으로 쓰고 있어 이름이 겹치면 안 된다 — 커스텀 매핑 이름은 `resource_action_map`으로 뺐다(진짜로 겹쳐서 테스트가 깨졌던 적 있음).
+  - `admin-web/` — 로그인 화면, 사이드바+탑바 레이아웃, 약점 목록/상세 화면. `docs/04_design_system.md`·`docs/05_screen_conventions.md`의 CSS 클래스를 prototype에서 그대로 옮겨왔다(`index.css`). 공통 컴포넌트: `DataTable`(검색+필터+페이징), `DetailLayout`+`PublishBox`+`MetaPanel`, `FormControls`(FormRow/TextInput/TextArea/SegToggle).
+  - **로컬 개발 시 CSRF 트러블슈팅**: Vite dev proxy(`changeOrigin:true`)가 Host 헤더를 백엔드로 바꿔 보내는데 브라우저 Origin 헤더는 그대로 프론트 오리진(5173/5174)이라 Django의 Origin↔Host 비교가 깨져서 모든 쓰기 요청이 403(CSRF Failed)이 났다. `config/settings.py`에 `CSRF_TRUSTED_ORIGINS = [localhost:5173, localhost:5174]` 추가로 해결 — 이후 세션에서 새 프론트 포트를 쓰면 여기 추가할 것.
+  - `.claude/launch.json` 추가 — Browser 미리보기 도구로 admin-web을 띄우려면 `npm --prefix admin-web run dev`가 필요해서(레포 루트에 package.json이 없으므로 `--prefix` 필수).
+- **테스트**: 백엔드 21개 통과(`pytest`), 프론트 `tsc -b`/`oxlint` 클린. 브라우저로 로그인→목록→상세 수정 저장→신규 생성까지 실제로 확인함(스크린 리더 트리 + 네트워크 로그로 검증).
+- **아직 안 한 것**: 64유형부터 나머지 9개 콘텐츠 화면(영양소·약재·식품군·혈자리·건강신호·예측질환·제품·요법관리), 약점 삭제 버튼의 `window.confirm` 흐름은 실브라우저에서만 확인 가능(헤드리스 자동화 도구는 native confirm을 못 다뤄서 수동 확인 필요), "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO — `AuditLog.ACTION_CHOICES`에 거부 액션이 없다.
 - **이 컴퓨터(`Genie-Blue`, 8GB RAM)에 설치된 도구**: Python 3.12 · Node.js LTS · uv · GNU Make(`ezwinports.make`) · GitHub CLI(`gh`, 인증됨) — 전부 winget으로 설치, PATH는 터미널 재시작해야 새로 인식됨(설치 직후만 해당)
 - **로컬 개발 명령**: `make setup`(최초 1회) → `make dev`(관리자 화면) 또는 `make dev-app`(고객 화면). Docker 안 씀 — DB는 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16)
-- **아직 안 한 것**: 콘텐츠 마스터(`schema/01_content_master.sql`)를 실제 Django 모델로 옮기기, 개발 전용 빠른 로그인, 관리자 화면 자체(지금은 "백엔드 연결 ok"만 뜨는 빈 페이지)
 - 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #16까지).
 
 ## M0 — 기반 (여기가 제일 중요하다)
@@ -20,28 +29,29 @@
 0. **`docs/08_tech_stack.md`를 먼저 읽는다.** 스택·저장소 구조·인증 방식이 거기 정해져 있다. ✅
 1. 프로젝트 스캐폴딩(Django+DRF / Vite×2), DB 연결(로컬 SQLite·CI/배포 PostgreSQL, §1·§6), 마이그레이션 ✅
    - `AUTH_USER_MODEL` 통합 형태로 반영(08 §3의 스키마 조정 1건) ✅
-2. `schema/01_content_master.sql` + `schema/02_service_1st.sql` 적용 — **서비스 스키마(02) 반영 완료. 콘텐츠 마스터(01)는 M1에서 실제 모델로 옮긴다**
-3. **감사로그·접속기록을 데이터 접근 계층에 심는다** (`docs/02_architecture_constraints.md` §1) — ✅ `AuditedModel` 상속 시 자동 기록(시그널). `access_log`·권한거부 로그는 M1에서 실제 뷰가 붙을 때 채운다
-4. **권한 검사를 라우트 미들웨어에 심는다** (§2) — `pii_read` 분리 포함. ✅ `AdminResourcePermission` 클래스는 만듦, 실제 관리자 화면이 붙는 M1에서 검증
-5. 관리자 로그인 + `admin_account` / `admin_role` / `admin_permission` 시드 — ✅ `seed_demo`(최소 버전)
+2. `schema/01_content_master.sql` + `schema/02_service_1st.sql` 적용 — ✅ **둘 다 완료.** 콘텐츠 마스터(01) 26테이블 전부 `apps/content/models.py`로 옮겨 마이그레이션 적용함
+3. **감사로그·접속기록을 데이터 접근 계층에 심는다** (`docs/02_architecture_constraints.md` §1) — ✅ `AuditedModel` 상속 시 자동 기록(시그널). `access_log`는 M4(회원 상세 조회 화면)에서 채운다. 권한거부 로그는 여전히 TODO(아래 참고)
+4. **권한 검사를 라우트 미들웨어에 심는다** (§2) — `pii_read` 분리 포함. ✅ `AdminResourcePermission`이 APIView·ViewSet 둘 다 지원하고 약점 CRUD로 실제 검증됨(`apps/content/tests.py`)
+5. 관리자 로그인 + `admin_account` / `admin_role` / `admin_permission` 시드 — ✅ `seed_demo` + 실제 로그인 화면(`admin-web`)까지 동작
 6. `DiagnosisProvider` 인터페이스 + `MockDiagnosisProvider` (§3) — ✅. 문진은 로그인 없이 시작(`docs/02_architecture_constraints.md` §6)
 
-7. **빠른 확인 환경**(08 §6): `make setup` + `make dev`(또는 `make dev-app`) 두 줄로 시드 데이터가 든 화면이 뜨게 한다. `seed_demo` 멱등 ✅, mock 판별 기본값 ✅, Vite dev proxy ✅. 개발 전용 빠른 로그인은 아직 — M1 관리자 로그인 화면과 함께 만든다.
+7. **빠른 확인 환경**(08 §6): `make setup` + `make dev`(또는 `make dev-app`) 두 줄로 시드 데이터가 든 화면이 뜨게 한다. `seed_demo` 멱등 ✅, mock 판별 기본값 ✅, Vite dev proxy ✅, 개발 전용 빠른 로그인 ✅(`/api/accounts/dev-login/`, DEBUG 전용).
 8. **CI 안전장치**(08 §9): GitHub Actions에서 실제 PostgreSQL로 `pytest` + `pip-audit`/`bandit`/`gitleaks`/`check --deploy`/감사로그 우회 검사. ✅ (`.github/workflows/ci.yml`)
 
 M0 완료 기준: **① `git clone` 후 명령 두 줄로 시드가 든 화면이 뜬다. ✅ ② 관리자로 로그인해 아무 레코드나 하나 수정하면 `audit_log`에 before/after가 남는다. ✅(자동 테스트로 증명, `apps/audit/tests.py`)**
 
-남은 것: 콘텐츠 마스터 스키마(01)를 실제 Django 모델로 옮기기, 개발 전용 빠른 로그인, 관리자 권한 매트릭스를 실제 화면에 적용 — 전부 M1에서 자연스럽게 채워진다.
+**M0 완전히 끝났다.** "권한 없는 접근이 감사로그에 남는가"(§2 체크리스트)만 아직 TODO — `AuditLog.ACTION_CHOICES`에 거부(denied) 액션 개념이 없어서, 화면이 몇 개 더 붙어 패턴이 보이면 로그 형태를 같이 정하기로 미뤘다(`apps/accounts/permissions.py` 상단 주석 참고).
 
 ## M1 — 관리자 콘텐츠 마스터
 
 프로토타입에 **이미 동작하는 구현이 있다.** 화면 구조·필드·상호작용을 그대로 옮기고 저장소만 실 DB로 바꾼다. 새로 설계할 것이 거의 없는 구간이다.
 
-순서: 약점(adm_003) → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024)
+순서: ~~약점(adm_003)~~ ✅ → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024)
 
 - 약점을 먼저 하는 이유: 모든 콘텐츠가 약점 태그로 연결되므로 이것이 없으면 나머지를 만들 수 없다.
 - 64유형이 그다음인 이유: 큐레이션이 영양·약재 카드를 참조하므로, 카드가 생긴 뒤 큐레이션 부분만 나중에 채워도 된다.
-- 공통 규격은 `docs/05_screen_conventions.md`. **첫 화면(약점)에서 공통 컴포넌트를 제대로 만들어 두면 나머지 9개는 조립이다.**
+- 공통 규격은 `docs/05_screen_conventions.md`. **첫 화면(약점)에서 공통 컴포넌트를 제대로 만들어 두면 나머지 9개는 조립이다.** → 컴포넌트는 `admin-web/src/components/`에 있다(`DataTable`/`DetailLayout`/`PublishBox`/`MetaPanel`/`FormControls`/`StatusBadge`). 다음 화면(64유형)부터는 이걸 그대로 조립.
+- 64유형(tem_type)은 약점과 달리 **체형특성 5중단점 슬라이더**(`bodyslider`, prototype CSS에 있음)와 **약재·영양 카드 n:m 태그 편집**이 추가로 필요하다 — 약점 화면보다 폼이 복잡하다는 점을 감안할 것.
 
 ## M2 — 고객 코어 플로우
 

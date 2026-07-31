@@ -1,20 +1,43 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiGet } from './api/client'
+import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { AdminLayout } from './components/AdminLayout'
+import { LoginPage } from './pages/LoginPage'
+import { WeaknessDetailPage } from './pages/WeaknessDetailPage'
+import { WeaknessListPage } from './pages/WeaknessListPage'
+import { useAuthStore } from './store/auth'
+
+function RequireAuth({ children }: { children: React.ReactElement }) {
+  const status = useAuthStore((s) => s.status)
+  if (status === 'loading') return <div style={{ padding: 24 }}>확인 중…</div>
+  if (status === 'anonymous') return <Navigate to="/login" replace />
+  return children
+}
 
 function App() {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ['health'],
-    queryFn: () => apiGet<{ status: string }>('/health/'),
-  })
+  const bootstrap = useAuthStore((s) => s.bootstrap)
+
+  useEffect(() => {
+    bootstrap()
+  }, [bootstrap])
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>올라케어 관리자</h1>
-      <p>
-        백엔드 연결:{' '}
-        {isPending ? '확인 중…' : isError ? '실패' : `ok (${data?.status})`}
-      </p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          element={
+            <RequireAuth>
+              <AdminLayout />
+            </RequireAuth>
+          }
+        >
+          <Route path="/" element={<Navigate to="/content/weaknesses" replace />} />
+          <Route path="/content/weaknesses" element={<WeaknessListPage />} />
+          <Route path="/content/weaknesses/:id" element={<WeaknessDetailPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

@@ -104,6 +104,14 @@ REST_FRAMEWORK = {
     ],
 }
 
+# ── CSRF. Vite dev proxy(changeOrigin: true)는 Host 헤더를 127.0.0.1:8000으로
+# 바꿔 보내지만 브라우저의 Origin 헤더는 그대로 프론트 오리진(5173/5174)이라
+# Django의 Origin↔Host 비교가 실패한다. 로컬 개발 프론트 두 개만 신뢰 오리진으로 연다.
+# docs/08_tech_stack.md §6 "Vite dev proxy" 참고.
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS", default=["http://localhost:5173", "http://localhost:5174"]
+)
+
 # ── 세션 쿠키. docs/08_tech_stack.md §3 ──────────────────────────
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"

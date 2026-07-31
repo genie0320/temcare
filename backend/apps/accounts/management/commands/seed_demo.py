@@ -1,7 +1,12 @@
+import sqlite3
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
+from apps.content import models as content
 from apps.support.models import AppSetting
 
 ROLES = [
@@ -12,14 +17,130 @@ ROLES = [
     ("viewer", "뷰어", 4),
 ]
 
-# M0 단계에서는 실제 화면 리소스가 아직 없어 데모 계정만 최소로 채운다.
 # 관리자 화면(M1)이 붙을 때마다 resource id를 여기 추가한다.
-SUPER_RESOURCES = ["demo"]
+SUPER_RESOURCES = ["demo", "adm_003"]
 SUPER_ACTIONS = ["read", "write", "delete", "publish", "pii_read"]
+EDITOR_RESOURCES = ["adm_003"]
+EDITOR_ACTIONS = ["read", "write", "delete", "publish"]  # 콘텐츠 에디터는 pii_read 없음
+
+# prototype/ollacare.sqlite → 콘텐츠 마스터 모델. docs/07_milestones.md M0 "남은 것".
+_SIMPLE_TABLES = [
+    ("weakness", content.Weakness),
+    ("nutrient", content.Nutrient),
+    ("herb", content.Herb),
+    ("food", content.Food),
+    ("point", content.Point),
+    ("health_sign", content.HealthSign),
+    ("illness", content.Illness),
+    ("product", content.Product),
+    ("tem_type", content.TemType),
+    ("article", content.Article),
+]
+
+_CARD_TABLES = [
+    ("nutrient_card", content.NutrientCard, "nutrient_id", "nutrient"),
+    ("herb_card", content.HerbCard, "herb_id", "herb"),
+]
+
+_WEAKNESS_JOIN_TABLES = [
+    ("tem_type_weakness", content.TemTypeWeakness, "type_id", "tem_type", content.TemType),
+    ("nutrient_card_weakness", content.NutrientCardWeakness, "card_id", "card", content.NutrientCard),
+    ("herb_card_weakness", content.HerbCardWeakness, "card_id", "card", content.HerbCard),
+    ("food_weakness", content.FoodWeakness, "food_id", "food", content.Food),
+    ("point_weakness", content.PointWeakness, "point_id", "point", content.Point),
+    ("article_weakness", content.ArticleWeakness, "article_id", "article", content.Article),
+    ("health_sign_weakness", content.HealthSignWeakness, "sign_id", "sign", content.HealthSign),
+    ("illness_weakness", content.IllnessWeakness, "illness_id", "illness", content.Illness),
+]
+
+_ARTICLE_LINK_TABLES = [
+    ("article_food", content.ArticleFood, "food_id", "food", content.Food),
+    ("article_point", content.ArticlePoint, "point_id", "point", content.Point),
+    ("article_product", content.ArticleProduct, "product_id", "product", content.Product),
+]
+
+
+def _seed_content(stdout, style):
+    db_path = Path(settings.BASE_DIR).parent / "prototype" / "ollacare.sqlite"
+    if not db_path.exists():
+        stdout.write(style.WARNING(f"콘텐츠 시드 건너뜀: {db_path} 없음"))
+        return
+
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+
+    def _row_dict(row):
+        # sqlite의 NULL은 blank=True 텍스트 컬럼에 그대로 넣으면 NOT NULL 제약에 걸린다.
+        return {k: ("" if v is None else v) for k, v in dict(row).items()}
+
+    for table, model in _SIMPLE_TABLES:
+        cur.execute(f"SELECT * FROM {table}")
+        n = 0
+        for row in cur.fetchall():
+            data = _row_dict(row)
+            pk = data.pop("id")
+            model.objects.update_or_create(id=pk, defaults=data)
+            n += 1
+        stdout.write(style.SUCCESS(f"{table} {n}건"))
+
+    for table, model, fk_col, fk_field in _CARD_TABLES:
+        cur.execute(f"SELECT * FROM {table}")
+        n = 0
+        for row in cur.fetchall():
+            data = _row_dict(row)
+            pk = data.pop("id")
+            fk_value = data.pop(fk_col)
+            data[fk_field + "_id"] = fk_value
+            model.objects.update_or_create(id=pk, defaults=data)
+            n += 1
+        stdout.write(style.SUCCESS(f"{table} {n}건"))
+
+    for table, through, fk_col, fk_field, _fk_model in _WEAKNESS_JOIN_TABLES:
+        cur.execute(f"SELECT * FROM {table}")
+        n = 0
+        for row in cur.fetchall():
+            through.objects.get_or_create(**{fk_field + "_id": row[fk_col], "weakness_id": row["weakness_id"]})
+            n += 1
+        stdout.write(style.SUCCESS(f"{table} {n}건"))
+
+    for table, through, fk_col, fk_field, _fk_model in _ARTICLE_LINK_TABLES:
+        cur.execute(f"SELECT * FROM {table}")
+        n = 0
+        for row in cur.fetchall():
+            through.objects.get_or_create(article_id=row["article_id"], **{fk_field + "_id": row[fk_col]})
+            n += 1
+        stdout.write(style.SUCCESS(f"{table} {n}건"))
+
+    cur.execute("SELECT * FROM tem_type_illness")
+    n = 0
+    for row in cur.fetchall():
+        content.TemTypeIllness.objects.get_or_create(
+            tem_type_id=row["type_id"], illness_id=row["illness_id"], pct=row["pct"], sort=row["sort"]
+        )
+        n += 1
+    stdout.write(style.SUCCESS(f"tem_type_illness {n}건"))
+
+    cur.execute("SELECT * FROM tem_type_curation")
+    n = 0
+    for row in cur.fetchall():
+        content.TemTypeCuration.objects.get_or_create(
+            tem_type_id=row["type_id"],
+            kind=row["kind"],
+            ref_id=row["ref_id"],
+            defaults={"polarity": row["polarity"] or "", "sort": row["sort"]},
+        )
+        n += 1
+    stdout.write(style.SUCCESS(f"tem_type_curation {n}건"))
+
+    con.close()
 
 
 class Command(BaseCommand):
-    help = "M0 최소 시드: admin_role/admin_permission, 데모 슈퍼관리자 계정, app_config. 언제든 다시 돌려도 안전(멱등)."
+    help = (
+        "시드: admin_role/admin_permission, 데모 관리자 계정, app_config, "
+        "prototype/ollacare.sqlite의 콘텐츠 마스터. 언제든 다시 돌려도 안전(멱등)."
+    )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -33,6 +154,14 @@ class Command(BaseCommand):
                 AdminPermission.objects.update_or_create(
                     role=super_role, resource=resource, action=action, defaults={"allowed": True}
                 )
+
+        editor_role = AdminRole.objects.get(id="editor")
+        for resource in EDITOR_RESOURCES:
+            for action in EDITOR_ACTIONS:
+                AdminPermission.objects.update_or_create(
+                    role=editor_role, resource=resource, action=action, defaults={"allowed": True}
+                )
+        self.stdout.write(self.style.SUCCESS("admin_permission 시드 완료"))
 
         admin_user, created = User.objects.get_or_create(
             username="admin@ollacare.local",
@@ -48,3 +177,5 @@ class Command(BaseCommand):
             key="diagnosis.provider", defaults={"value": "mock", "description": "판별 어댑터 선택"}
         )
         self.stdout.write(self.style.SUCCESS("app_config: diagnosis.provider = mock"))
+
+        _seed_content(self.stdout, self.style)

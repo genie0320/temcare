@@ -138,6 +138,14 @@
 - 이 결정으로 로컬 개발엔 Docker가 아예 필요 없어졌다 — Python·Node.js만 있으면 된다. Docker는 배포(§10-1)에서만 쓴다.
 - 세부는 `docs/08_tech_stack.md` §1, §6, §9.
 
+## 17. 관리자 API 권한 검사는 ViewSet의 action을 resource action으로 자동 매핑한다 (2026-07-31)
+
+약점(adm_003) CRUD를 DRF `ModelViewSet`으로 만들면서 `AdminResourcePermission`(§2 라우트 진입점 권한 검사)이 단일 `required_action` 선언만 지원하던 걸 ViewSet용으로 확장했다.
+
+- `list`/`retrieve` → `read`, `create` → `write`, `update`/`partial_update` → `write`, `destroy` → `delete`로 기본 매핑한다. 화면마다 반복 선언할 필요가 없다.
+- ★ 커스텀 매핑 오버라이드 이름을 `resource_action_map`으로 지었다 — 처음엔 `action_map`으로 했다가 DRF `ViewSetMixin`이 이미 그 이름을 (http method → action명) 용도로 내부적으로 쓰고 있어서 충돌, 권한 매트릭스에 있는데도 403이 나는 버그가 났다. 앞으로 ViewSet에 속성을 얹을 때는 DRF 내부 속성명과 겹치는지 먼저 확인할 것.
+- 로컬 개발 환경에서 Vite dev proxy(포트 5173/5174)를 쓰는 프론트가 관리자 API에 쓰기 요청을 보내면 Django의 CSRF Origin 검사가 실패한다(Origin은 프론트 오리진, Host는 프록시가 바꾼 백엔드 오리진이라 불일치). `config/settings.py`에 `CSRF_TRUSTED_ORIGINS`로 로컬 프론트 오리진 두 개를 등록해 해결했다. 새 로컬 프론트 포트가 추가되면 여기 같이 추가해야 한다.
+
 ---
 
 ## 아직 안 정해진 것 (📌 — 임의로 정하지 말 것)
