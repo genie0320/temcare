@@ -15,7 +15,9 @@ from apps.accounts.permissions import AdminResourcePermission
 
 from .models import (
     Food,
+    Herb,
     HerbCard,
+    HerbCardWeakness,
     Illness,
     Nutrient,
     NutrientCard,
@@ -27,6 +29,8 @@ from .models import (
     Weakness,
 )
 from .serializers import (
+    HerbDetailSerializer,
+    HerbListSerializer,
     IllnessOptionSerializer,
     NutrientDetailSerializer,
     NutrientListSerializer,
@@ -39,6 +43,7 @@ from .serializers import (
 _WEAK_ID_RE = re.compile(r"^WEAK-(\d+)$")
 _TEM_ID_RE = re.compile(r"^TEM(\d+)$")
 _NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
+_HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -66,6 +71,15 @@ def _next_nutrient_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"NUT-{max_n + 1:02d}"
+
+
+def _next_herb_id() -> str:
+    max_n = 0
+    for hid in Herb.objects.values_list("id", flat=True):
+        m = _HRB_ID_RE.match(hid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"HRB-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -329,6 +343,82 @@ class NutrientPerspectiveOptionsView(APIView):
 
     def get(self, request):
         values = NutrientCard.objects.exclude(perspective="").values_list("perspective", flat=True)
+        return Response(sorted(set(values)))
+
+
+class HerbViewSet(ModelViewSet):
+    """약재(인생처방) 마스터(adm_023). 영양소(adm_022)와 동일 구조 — 마스터 1건 + 하위
+    카드 N건(효능기전별), 카드마다 약점 n:m. 한자/생약명 필드만 추가로 있다.
+    """
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_023"
+    queryset = Herb.objects.all()
+
+    def get_serializer_class(self):
+        return HerbListSerializer if self.action == "list" else HerbDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(id__icontains=search)
+                | Q(hanja__icontains=search)
+                | Q(cards__mechanism__icontains=search)
+            )
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(cards__weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_herb_id(), updated_by=self._actor_label())
+        self._sync_cards(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_cards(instance)
+
+    def _sync_cards(self, instance):
+        """효능 카드를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
+        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        data = self.request.data
+        if "cards" not in data:
+            return
+        for card in list(instance.cards.all()):
+            card.delete()
+        for i, item in enumerate(data.get("cards") or []):
+            mechanism = (item.get("mechanism") or "").strip()
+            description = (item.get("description") or "").strip()
+            weakness_ids = item.get("weakness_ids") or []
+            if not mechanism and not description and not weakness_ids:
+                continue
+            card = HerbCard.objects.create(
+                herb=instance, mechanism=mechanism, description=description, sort=i
+            )
+            for wid in weakness_ids:
+                HerbCardWeakness.objects.create(card=card, weakness_id=wid)
+
+
+class HerbMechanismOptionsView(APIView):
+    """효능 카드 입력란의 자동완성 후보(spec adm_023 3행: 자유텍스트+자동완성)."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_023"
+    required_action = "read"
+
+    def get(self, request):
+        values = HerbCard.objects.exclude(mechanism="").values_list("mechanism", flat=True)
         return Response(sorted(set(values)))
 
 

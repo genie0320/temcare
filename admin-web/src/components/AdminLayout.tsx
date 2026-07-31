@@ -11,7 +11,10 @@ const NAV = [
   },
   {
     group: '콘텐츠 관리',
-    items: [{ to: '/content/nutrients', icon: '💊', label: '영양소 마스터' }],
+    items: [
+      { to: '/content/nutrients', icon: '💊', label: '영양소 마스터' },
+      { to: '/content/herbs', icon: '🌿', label: '약재 마스터' },
+    ],
   },
   {
     group: '시스템',

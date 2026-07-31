@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.audit.models import AuditLog
-from apps.content.models import Food, Illness, Nutrient, NutrientCard, TemType, Weakness
+from apps.content.models import Food, Herb, HerbCard, Illness, Nutrient, NutrientCard, TemType, Weakness
 
 
 def _make_admin(role_id, resources_actions):
@@ -357,3 +357,100 @@ def test_image_upload_rejects_non_image_content_type(tmp_path, settings):
     upload = SimpleUploadedFile("evil.sh", b"#!/bin/sh\necho hi", content_type="application/x-sh")
     resp = client.post("/api/content/image-upload/", {"resource": "adm_022", "file": upload}, format="multipart")
     assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_herb_create_with_cards_and_hanja():
+    user = _make_admin("editor", [("adm_023", "read"), ("adm_023", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+
+    resp = client.post(
+        "/api/content/herbs/",
+        {
+            "name": "육계",
+            "hanja": "肉桂",
+            "cards": [
+                {"mechanism": "혈액순환·온열", "description": "몸을 데운다", "weakness_ids": [w1.id, w2.id]},
+            ],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "HRB-01"  # 서버 채번
+    assert body["hanja"] == "肉桂"
+    assert len(body["cards"]) == 1
+    assert body["cards"][0]["mechanism"] == "혈액순환·온열"
+    assert set(body["cards"][0]["weakness_ids"]) == {w1.id, w2.id}
+
+
+@pytest.mark.django_db
+def test_herb_update_replaces_cards_not_appends():
+    user = _make_admin("editor", [("adm_023", "read"), ("adm_023", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    herb = Herb.objects.create(id="HRB-01", name="육계")
+    old_card = HerbCard.objects.create(herb=herb, mechanism="옛 효능")
+    old_card.weaknesses.add(w1)
+
+    resp = client.patch(
+        "/api/content/herbs/HRB-01/",
+        {"cards": [{"mechanism": "새 효능", "description": "새 설명", "weakness_ids": [w1.id]}]},
+        format="json",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["cards"]) == 1
+    assert body["cards"][0]["mechanism"] == "새 효능"
+    assert not HerbCard.objects.filter(mechanism="옛 효능").exists()
+
+
+@pytest.mark.django_db
+def test_herb_list_shows_weakness_names_and_card_count():
+    user = _make_admin("editor", [("adm_023", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    herb = Herb.objects.create(id="HRB-01", name="육계", hanja="肉桂")
+    card = HerbCard.objects.create(herb=herb, mechanism="효능")
+    card.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/herbs/")
+    assert resp.status_code == 200
+    body = resp.json()[0]
+    assert body["weakness_names"] == ["추위"]
+    assert body["card_count"] == 1
+    assert body["hanja"] == "肉桂"
+
+
+@pytest.mark.django_db
+def test_herb_delete_cascades_cards_and_is_audited():
+    user = _make_admin("editor", [("adm_023", "read"), ("adm_023", "write"), ("adm_023", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    herb = Herb.objects.create(id="HRB-01", name="육계")
+    card = HerbCard.objects.create(herb=herb, mechanism="효능")
+    card_id = card.id
+
+    resp = client.delete("/api/content/herbs/HRB-01/")
+    assert resp.status_code == 204
+    assert not Herb.objects.filter(id="HRB-01").exists()
+    assert not HerbCard.objects.filter(id=card_id).exists()
+    assert AuditLog.objects.filter(target_table="herb_card", target_id=str(card_id), action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_herb_write_denied_without_adm_023_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/herbs/", {"name": "육계"}, format="json")
+    assert resp.status_code == 403

@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AdminLayout } from './components/AdminLayout'
 import { DesignSystemPage } from './pages/DesignSystemPage'
+import { HerbDetailPage } from './pages/HerbDetailPage'
+import { HerbListPage } from './pages/HerbListPage'
 import { LoginPage } from './pages/LoginPage'
 import { NutrientDetailPage } from './pages/NutrientDetailPage'
 import { NutrientListPage } from './pages/NutrientListPage'
@@ -43,6 +45,8 @@ function App() {
           <Route path="/content/tem-types/:id" element={<TemTypeDetailPage />} />
           <Route path="/content/nutrients" element={<NutrientListPage />} />
           <Route path="/content/nutrients/:id" element={<NutrientDetailPage />} />
+          <Route path="/content/herbs" element={<HerbListPage />} />
+          <Route path="/content/herbs/:id" element={<HerbDetailPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
