@@ -169,27 +169,27 @@ make dev                      # 마이그레이션 + 시드 + Django + Vite 동�
 ## 9. 보안 기본값 체크리스트
 
 **설정**
-- [ ] `DEBUG=False`, `ALLOWED_HOSTS` 지정, `SECRET_KEY`는 환경변수
-- [ ] `SECURE_SSL_REDIRECT` · `SESSION_COOKIE_SECURE` · `CSRF_COOKIE_SECURE` · `SECURE_HSTS_SECONDS`
-- [ ] `SESSION_COOKIE_HTTPONLY` · `SAMESITE=Lax`
-- [ ] `python manage.py check --deploy` 통과
-- [ ] 시크릿은 코드·저장소에 없음 (`.env`는 `.gitignore`)
+- [x] `DEBUG=False`, `ALLOWED_HOSTS` 지정, `SECRET_KEY`는 환경변수
+- [x] `SECURE_SSL_REDIRECT` · `SESSION_COOKIE_SECURE` · `CSRF_COOKIE_SECURE` · `SECURE_HSTS_SECONDS`
+- [x] `SESSION_COOKIE_HTTPONLY` · `SAMESITE=Lax`
+- [x] `python manage.py check --deploy` 통과 (CI에서 매번 확인)
+- [x] 시크릿은 코드·저장소에 없음 (`.env`는 `.gitignore`, gitleaks가 CI에서 추가 확인)
 
 **코드**
-- [ ] `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`
-- [ ] 시리얼라이저에 `fields = '__all__'` 없음
-- [ ] 로그인·문진 제출에 요청 제한 (django-axes / django-ratelimit)
-- [ ] 감사로그 우회 4종(`update`/`bulk_*`/`raw`/queryset `delete`) 없음
-- [ ] 에러 응답에 스택트레이스·내부 경로 노출 없음
+- [x] `DEFAULT_PERMISSION_CLASSES = IsAuthenticated`
+- [ ] 시리얼라이저에 `fields = '__all__'` 없음 — M1에서 실제 시리얼라이저가 생기면 확인
+- [ ] 로그인·문진 제출에 요청 제한 (django-axes / django-ratelimit) — 아직 미설치
+- [x] 감사로그 우회 4종(`update`/`bulk_*`/`raw`/queryset `delete`) 없음 — CI grep 검사
+- [ ] 에러 응답에 스택트레이스·내부 경로 노출 없음 — DEBUG=False로 기본 방어되나 커스텀 에러 핸들러는 아직 없음
 
-**CI (GitHub Actions)**
-- [ ] `pytest` — 엔드포인트별 "권한 없으면 403" 테스트 포함
-- [ ] **`pytest`를 실제 PostgreSQL 서비스 컨테이너로도 실행** — 로컬 SQLite와의 동작 차이를 커밋 시점에 잡는다(§6)
-- [ ] `pip-audit` — 의존성 취약점
-- [ ] `bandit` — 파이썬 정적분석
-- [ ] `gitleaks` — 시크릿 유출
-- [ ] `manage.py check --deploy`
-- [ ] 감사로그 우회 패턴 grep 검사
+**CI (GitHub Actions)** — `.github/workflows/ci.yml` (2026-07-31 구축)
+- [ ] `pytest` — 엔드포인트별 "권한 없으면 403" 테스트 포함. 지금은 로그인 필요 여부만 확인(§6 diagnosis 테스트) — 관리자 리소스별 403 테스트는 M1에서 추가
+- [x] **`pytest`를 실제 PostgreSQL 서비스 컨테이너로도 실행** — 로컬 SQLite와의 동작 차이를 커밋 시점에 잡는다(§6)
+- [x] `pip-audit` — 의존성 취약점
+- [x] `bandit` — 파이썬 정적분석
+- [x] `gitleaks` — 시크릿 유출
+- [x] `manage.py check --deploy`
+- [x] 감사로그 우회 패턴 grep 검사 — `backend/scripts/check_audit_bypass.sh`. `apps/audit/`는 검사 대상에서 제외(구현 자체이므로), 의도된 예외는 `# audit: intentional` 주석으로 표시
 
 **오픈 전 1회**
 - [ ] 자동 스캐너(OWASP ZAP 등) 1회

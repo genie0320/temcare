@@ -110,5 +110,11 @@ SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
 
+# ── 배포 보안 기본값. docs/08_tech_stack.md §9 "manage.py check --deploy 통과" ──
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0 if DEBUG else 31536000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+
 # ── 판별 어댑터 기본값. docs/02_architecture_constraints.md §3 ──
 DIAGNOSIS_PROVIDER = env("DIAGNOSIS_PROVIDER", default="mock")

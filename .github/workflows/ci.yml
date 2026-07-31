@@ -1,0 +1,73 @@
+name: CI
+
+# 로컬 개발은 SQLite(가벼움), 여기서는 실제 PostgreSQL로 돌려서 호환성을 커밋 시점에 잡는다.
+# 근거: docs/06_decisions.md #16, docs/08_tech_stack.md §6·§9
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: olla
+          POSTGRES_PASSWORD: olla
+          POSTGRES_DB: olla_care_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-test-secret-key-not-for-production-0123456789
+      DEBUG: "False"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_URL: postgres://olla:olla@localhost:5432/olla_care_test
+      DIAGNOSIS_PROVIDER: mock
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: 의존성 설치
+        run: uv sync
+
+      - name: pytest — 실제 PostgreSQL로 돌린다
+        run: uv run pytest -q
+
+      - name: manage.py check --deploy
+        run: uv run python manage.py check --deploy
+
+      - name: pip-audit — 의존성 취약점
+        run: uv run pip-audit
+
+      - name: bandit — 파이썬 정적분석
+        run: uv run bandit -r apps config -x '*/migrations/*,*/tests.py' -q
+
+      - name: 감사로그 우회 패턴 검사
+        run: bash scripts/check_audit_bypass.sh
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

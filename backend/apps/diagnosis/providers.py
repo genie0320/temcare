@@ -42,7 +42,7 @@ class MockDiagnosisProvider(DiagnosisProvider):
             raise DiagnosisTimeoutError("mock: 타임아웃 시뮬레이션")
         if self.force_fail:
             raise DiagnosisFailedError("mock: 실패 시뮬레이션")
-        return random.randint(1, 64)
+        return random.randint(1, 64)  # nosec B311 — 보안용 난수 아님, mock 데모 결과값일 뿐
 
 
 class JunchartDiagnosisProvider(DiagnosisProvider):

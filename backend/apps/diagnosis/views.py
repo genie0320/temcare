@@ -18,7 +18,7 @@ def _record_stat(raw_value: int) -> None:
     구멍이 생기지 않는다(오히려 F() 표현식으로 동시성 안전하게 +1 하는 게 맞다).
     """
     stat, _ = DiagnosisStat.objects.get_or_create(type_id=str(raw_value), day=timezone.localdate())
-    DiagnosisStat.objects.filter(pk=stat.pk).update(count=F("count") + 1)
+    DiagnosisStat.objects.filter(pk=stat.pk).update(count=F("count") + 1)  # audit: intentional (DiagnosisStat은 AuditedModel 아님)
 
 
 @api_view(["POST"])
