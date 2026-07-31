@@ -75,9 +75,9 @@ class TemType(MasterModel):
     id = models.CharField(max_length=10, primary_key=True)
     name = models.CharField(max_length=50)
     nickname = models.CharField(max_length=100, blank=True)
-    body_value = models.IntegerField(default=50)
-    body_min = models.IntegerField(default=40)
-    body_max = models.IntegerField(default=60)
+    body_value = models.IntegerField(default=50)  # (구) 단일값 · body_min/max로부터 파생 계산해 보존
+    body_min = models.IntegerField(default=2)  # 체형특성 5중단점 인덱스(0~4). 2=보통
+    body_max = models.IntegerField(default=2)
     body_desc = models.TextField(blank=True)
     herb_title = models.CharField(max_length=200, blank=True)
     herb_desc = models.TextField(blank=True)

@@ -2,7 +2,13 @@ import { Link, Outlet, useLocation } from 'react-router'
 import { useAuthStore } from '../store/auth'
 
 const NAV = [
-  { group: '체질/진단 관리', items: [{ to: '/content/weaknesses', icon: '🏷️', label: '약점태그 마스터' }] },
+  {
+    group: '체질/진단 관리',
+    items: [
+      { to: '/content/tem-types', icon: '🧬', label: '64유형 마스터' },
+      { to: '/content/weaknesses', icon: '🏷️', label: '약점태그 마스터' },
+    ],
+  },
 ]
 
 export function AdminLayout() {

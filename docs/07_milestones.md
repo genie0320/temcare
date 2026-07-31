@@ -2,25 +2,22 @@
 
 > 순서에 근거가 있다. 임의로 바꾸면 나중에 되돌아가야 하는 지점이 있다.
 
-## 지금 상태 (세션 인수인계 — 2026-07-31 저녁 업데이트, 체크포인트 2 완료)
+## 지금 상태 (세션 인수인계 — 2026-07-31 밤 업데이트, 체크포인트 3 완료)
 
-**M0 완료 + M1 첫 화면(약점) 실동작.** 콘텐츠 마스터 26테이블 전부 Django 모델로 옮겼고, 관리자 로그인(실로그인 + 개발용 빠른 로그인)과 약점(adm_003) 목록·상세 CRUD가 브라우저에서 끝까지 확인됐다.
+**M0 완료 + M1 두 번째 화면(64유형)까지 실동작.** 약점(adm_003)에 이어 64유형(adm_002) 목록·상세 CRUD — 체형특성 5중단점 슬라이더, 예측질환 발병율 반복 행, 영양·약재·식품군 3종 큐레이션 피커까지 — 브라우저에서 실데이터로 끝까지 확인됐다.
 
-- **바로 이어서 할 일**: M1 순서대로 다음 화면(64유형 adm_002)부터 — `WeaknessListPage`/`WeaknessDetailPage` + `PublishBox`/`MetaPanel`/`DataTable`/`FormControls` 등 `admin-web/src/components/`의 공통 컴포넌트를 그대로 조립하면 된다(약점 화면을 "첫 화면"으로 잡은 이유가 이것). 백엔드도 `apps/content/views.py`의 `WeaknessViewSet` + `apps/accounts/permissions.py`의 `AdminResourcePermission`(ViewSet용 `resource_action_map` 자동 매핑) 패턴을 그대로 복붙 확장하면 된다.
+- **바로 이어서 할 일**: M1 순서대로 영양소(adm_022)부터. 이번엔 반대 방향 작업이다 — 지금까지는 "64유형이 영양/약재 카드를 참조"했다면, 이제 그 카드 자체(마스터 + 약점별 관점/효능기전 카드, `docs/05_screen_conventions.md` §C 반복 카드 리스트 패턴)를 만드는 화면이다. `NutrientCard`/`HerbCard` 모델과 `weaknesses` M2M은 이미 있다(`apps/content/models.py`) — API·프론트만 없다.
 - **이번 세션에 한 일**:
-  - `apps/content/models.py` — schema/01_content_master.sql의 26개 테이블 전부 Django 모델로(약점·64유형·영양소·약재·식품군·혈자리·요법·건강신호·예측질환·제품 + 전 join 테이블). 마이그레이션 적용 완료.
-  - `seed_demo`가 `prototype/ollacare.sqlite`에서 콘텐츠 마스터를 실제로 읽어 넣는다(멱등 확인됨). `make setup` → `make dev`로 뜨는 화면에 진짜 시드 데이터가 보인다.
-  - `apps/accounts/views.py` — 관리자 로그인(`/api/accounts/login/`, 이메일+비밀번호) + 개발용 빠른 로그인(`/api/accounts/dev-login/`, DEBUG 전용, 404로 프로덕션 차단) + `/me/` + `/logout/` + `/csrf/`.
-  - `apps/content/` — 약점(adm_003) 목록·상세 API(`WeaknessViewSet`), 화이트리스트 시리얼라이저 2종(목록/상세 분리), ID는 서버가 `WEAK-##` 자동 채번.
-  - `AdminResourcePermission`을 ViewSet에서도 쓸 수 있게 확장(action→resource action 자동 매핑). ★ DRF `ViewSetMixin`이 이미 `action_map`을 내부적으로 쓰고 있어 이름이 겹치면 안 된다 — 커스텀 매핑 이름은 `resource_action_map`으로 뺐다(진짜로 겹쳐서 테스트가 깨졌던 적 있음).
-  - `admin-web/` — 로그인 화면, 사이드바+탑바 레이아웃, 약점 목록/상세 화면. `docs/04_design_system.md`·`docs/05_screen_conventions.md`의 CSS 클래스를 prototype에서 그대로 옮겨왔다(`index.css`). 공통 컴포넌트: `DataTable`(검색+필터+페이징), `DetailLayout`+`PublishBox`+`MetaPanel`, `FormControls`(FormRow/TextInput/TextArea/SegToggle).
-  - **로컬 개발 시 CSRF 트러블슈팅**: Vite dev proxy(`changeOrigin:true`)가 Host 헤더를 백엔드로 바꿔 보내는데 브라우저 Origin 헤더는 그대로 프론트 오리진(5173/5174)이라 Django의 Origin↔Host 비교가 깨져서 모든 쓰기 요청이 403(CSRF Failed)이 났다. `config/settings.py`에 `CSRF_TRUSTED_ORIGINS = [localhost:5173, localhost:5174]` 추가로 해결 — 이후 세션에서 새 프론트 포트를 쓰면 여기 추가할 것.
-  - `.claude/launch.json` 추가 — Browser 미리보기 도구로 admin-web을 띄우려면 `npm --prefix admin-web run dev`가 필요해서(레포 루트에 package.json이 없으므로 `--prefix` 필수).
-- **테스트**: 백엔드 21개 통과(`pytest`), 프론트 `tsc -b`/`oxlint` 클린. 브라우저로 로그인→목록→상세 수정 저장→신규 생성까지 실제로 확인함(스크린 리더 트리 + 네트워크 로그로 검증).
-- **아직 안 한 것**: 64유형부터 나머지 9개 콘텐츠 화면(영양소·약재·식품군·혈자리·건강신호·예측질환·제품·요법관리), 약점 삭제 버튼의 `window.confirm` 흐름은 실브라우저에서만 확인 가능(헤드리스 자동화 도구는 native confirm을 못 다뤄서 수동 확인 필요), "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO — `AuditLog.ACTION_CHOICES`에 거부 액션이 없다.
+  - 지난 체크포인트(약점 CRUD)에서 CI가 bandit(B608, seed_demo의 f-string SQL 오탐)로 한 번 빨간불 났었다 — `# nosec` 표시로 해결하고 재푸시해 초록불 확인함(GitHub Actions run #6).
+  - `apps/content/models.py` — `TemType.body_min/body_max` 기본값을 구 스키마 주석(40/60, 단일 range 시절 잔재)에서 v2 실제 의미(0~4 인덱스, 2=보통)로 수정. 시드 데이터(`tem_type.body_min=0~3` 등)와 맞춘 것.
+  - `apps/content/serializers.py`·`views.py` — `TemTypeViewSet`(목록/상세) + 큐레이션 후보 API 4종(`NutrientCardCandidatesView`/`HerbCardCandidatesView`/`FoodCandidatesView`/`IllnessOptionsView`, 전부 `resource=adm_002`). 약점·예측질환·큐레이션(영양/약재/식품)은 모델 필드가 아니라 관계 테이블이라 시리얼라이저는 읽기 전용 `SerializerMethodField`로만 쓰고, 쓰기는 `TemTypeViewSet._sync_children()`이 `request.data`를 직접 받아 "통째로 교체"(delete 후 재생성, 인스턴스 단위라 감사규칙 §4 위반 아님) 방식으로 처리한다.
+  - `admin-web/` — `TemTypeListPage`/`TemTypeDetailPage` + 새 컴포넌트 4종: `WeaknessTagPicker`(칩 토글), `BodySlider`(5중단점, 시작→종료 2클릭), `IllnessRateRows`(반복 행), `CuratedPickList`+`PickerModal`(실피커 모달, §D). **이 피커 모달은 재사용 가능하게 만들었다** — 다음 화면들(영양소/약재 자체의 약점 카드 편집 등)에서도 그대로 쓸 것.
+  - `prototype/admin_prototype.html`에서 **type-detail 화면이 두 벌**이라는 걸 발견했다: 641~714행은 spec v1(구형 단일 range 슬라이더), 1774~1900행이 실제 v2(5중단점, 큐레이션 피커 포함)다. 명세서(`spec/temcare_admin-screen-spec_v3.xlsx`)와 1774행 쪽이 일치했고 그걸 기준으로 만들었다. **다음 화면도 프로토타입에서 코드를 찾을 때 화면명으로 두 번 이상 grep해서 최신 버전인지 확인할 것** — 오래된 사본이 먼저 걸릴 수 있다.
+- **테스트**: 백엔드 27개 통과(`pytest`, TemType 6개 추가), bandit·감사로그 우회 검사·`tsc -b`·`oxlint` 전부 클린. 브라우저로 목록→상세(약점 토글/체형슬라이더/예측질환%/큐레이션 3종)→저장→재조회 라운드트립 + 신규 생성 + 피커 모달 오픈까지 실제로 확인함.
+- **아직 안 한 것**: 영양소(adm_022)부터 나머지 8개 콘텐츠 화면, "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO, `window.confirm` 삭제 흐름은 헤드리스 자동화로 검증 불가(수동 확인만 가능).
 - **이 컴퓨터(`Genie-Blue`, 8GB RAM)에 설치된 도구**: Python 3.12 · Node.js LTS · uv · GNU Make(`ezwinports.make`) · GitHub CLI(`gh`, 인증됨) — 전부 winget으로 설치, PATH는 터미널 재시작해야 새로 인식됨(설치 직후만 해당)
 - **로컬 개발 명령**: `make setup`(최초 1회) → `make dev`(관리자 화면) 또는 `make dev-app`(고객 화면). Docker 안 씀 — DB는 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16)
-- 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #16까지).
+- 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #17까지).
 
 ## M0 — 기반 (여기가 제일 중요하다)
 
@@ -46,12 +43,12 @@ M0 완료 기준: **① `git clone` 후 명령 두 줄로 시드가 든 화면�
 
 프로토타입에 **이미 동작하는 구현이 있다.** 화면 구조·필드·상호작용을 그대로 옮기고 저장소만 실 DB로 바꾼다. 새로 설계할 것이 거의 없는 구간이다.
 
-순서: ~~약점(adm_003)~~ ✅ → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024)
+순서: ~~약점(adm_003)~~ ✅ → ~~64유형(adm_002)~~ ✅ → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024)
 
 - 약점을 먼저 하는 이유: 모든 콘텐츠가 약점 태그로 연결되므로 이것이 없으면 나머지를 만들 수 없다.
 - 64유형이 그다음인 이유: 큐레이션이 영양·약재 카드를 참조하므로, 카드가 생긴 뒤 큐레이션 부분만 나중에 채워도 된다.
-- 공통 규격은 `docs/05_screen_conventions.md`. **첫 화면(약점)에서 공통 컴포넌트를 제대로 만들어 두면 나머지 9개는 조립이다.** → 컴포넌트는 `admin-web/src/components/`에 있다(`DataTable`/`DetailLayout`/`PublishBox`/`MetaPanel`/`FormControls`/`StatusBadge`). 다음 화면(64유형)부터는 이걸 그대로 조립.
-- 64유형(tem_type)은 약점과 달리 **체형특성 5중단점 슬라이더**(`bodyslider`, prototype CSS에 있음)와 **약재·영양 카드 n:m 태그 편집**이 추가로 필요하다 — 약점 화면보다 폼이 복잡하다는 점을 감안할 것.
+- 공통 규격은 `docs/05_screen_conventions.md`. **첫 화면(약점)에서 공통 컴포넌트를 제대로 만들어 두면 나머지 9개는 조립이다.** → 컴포넌트는 `admin-web/src/components/`에 있다(`DataTable`/`DetailLayout`/`PublishBox`/`MetaPanel`/`FormControls`/`StatusBadge`/`WeaknessTagPicker`/`PickerModal`/`CuratedPickList`).
+- 영양소(adm_022)부터는 **§C 반복 카드 리스트 패턴**(마스터 1건 + 하위 카드 N건, 카드마다 약점 n:m)이 핵심이다. `NutrientCard`/`HerbCard` 모델은 이미 있다. 카드 추가/삭제 UI는 64유형에서 만든 `PickerModal`을 재사용하지 말고 — 이건 반대 방향(카드를 새로 만드는 것)이라 `docs/05_screen_conventions.md` §C의 "반복 카드 리스트"(`+ 관점 카드 추가` 버튼으로 빈 카드 추가, 카드 안에 약점 다중선택)를 새로 만들어야 한다.
 
 ## M2 — 고객 코어 플로우
 

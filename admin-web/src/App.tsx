@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AdminLayout } from './components/AdminLayout'
 import { LoginPage } from './pages/LoginPage'
+import { TemTypeDetailPage } from './pages/TemTypeDetailPage'
+import { TemTypeListPage } from './pages/TemTypeListPage'
 import { WeaknessDetailPage } from './pages/WeaknessDetailPage'
 import { WeaknessListPage } from './pages/WeaknessListPage'
 import { useAuthStore } from './store/auth'
@@ -34,6 +36,8 @@ function App() {
           <Route path="/" element={<Navigate to="/content/weaknesses" replace />} />
           <Route path="/content/weaknesses" element={<WeaknessListPage />} />
           <Route path="/content/weaknesses/:id" element={<WeaknessDetailPage />} />
+          <Route path="/content/tem-types" element={<TemTypeListPage />} />
+          <Route path="/content/tem-types/:id" element={<TemTypeDetailPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
