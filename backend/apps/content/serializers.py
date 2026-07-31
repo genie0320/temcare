@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Herb, Illness, Nutrient, TemType, Weakness
+from .models import Food, Herb, Illness, Nutrient, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -224,3 +224,45 @@ class HerbDetailSerializer(serializers.ModelSerializer):
             }
             for card in obj.cards.all()
         ]
+
+
+class FoodListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_025). §B — 카드가 아니라 단일 레코드 + 약점 체크박스."""
+
+    weakness_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Food
+        fields = ["id", "polarity", "foods", "component", "status", "weakness_names", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("name", flat=True))
+
+
+class FoodDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_025). 약점은 모델 필드가 아니므로 읽기는 SerializerMethodField,
+    쓰기는 뷰(FoodViewSet._sync_weaknesses)에서 request.data를 직접 받아 처리한다.
+    """
+
+    weakness_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Food
+        fields = [
+            "id",
+            "polarity",
+            "foods",
+            "component",
+            "description",
+            "image",
+            "status",
+            "sort",
+            "weakness_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_weakness_ids(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))

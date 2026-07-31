@@ -454,3 +454,99 @@ def test_herb_write_denied_without_adm_023_permission():
 
     resp = client.post("/api/content/herbs/", {"name": "육계"}, format="json")
     assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_food_create_with_weaknesses():
+    user = _make_admin("editor", [("adm_025", "read"), ("adm_025", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+
+    resp = client.post(
+        "/api/content/foods/",
+        {
+            "polarity": "제한",
+            "foods": "시금치·케일·브로콜리",
+            "component": "칼륨",
+            "description": "신장의 나트륨 배출을 돕는다",
+            "weakness_ids": [w1.id, w2.id],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "FOOD-01"  # 서버 채번
+    assert body["polarity"] == "제한"
+    assert set(body["weakness_ids"]) == {w1.id, w2.id}
+
+
+@pytest.mark.django_db
+def test_food_update_replaces_weaknesses_not_appends():
+    user = _make_admin("editor", [("adm_025", "read"), ("adm_025", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+    food = Food.objects.create(id="FOOD-01", foods="고구마")
+    food.weaknesses.add(w1)
+
+    resp = client.patch("/api/content/foods/FOOD-01/", {"weakness_ids": [w2.id]}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["weakness_ids"] == [w2.id]
+
+
+@pytest.mark.django_db
+def test_food_list_shows_polarity_and_weakness_names():
+    user = _make_admin("editor", [("adm_025", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    food = Food.objects.create(id="FOOD-01", foods="생강차", polarity="권장", component="진저롤")
+    food.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/foods/")
+    assert resp.status_code == 200
+    body = resp.json()[0]
+    assert body["polarity"] == "권장"
+    assert body["weakness_names"] == ["추위"]
+
+
+@pytest.mark.django_db
+def test_food_delete_is_audited():
+    user = _make_admin("editor", [("adm_025", "read"), ("adm_025", "write"), ("adm_025", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Food.objects.create(id="FOOD-01", foods="고구마")
+    resp = client.delete("/api/content/foods/FOOD-01/")
+    assert resp.status_code == 204
+    assert not Food.objects.filter(id="FOOD-01").exists()
+    assert AuditLog.objects.filter(target_table="food", target_id="FOOD-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_food_write_denied_without_adm_025_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/foods/", {"foods": "고구마"}, format="json")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_food_component_options_returns_distinct_values():
+    user = _make_admin("editor", [("adm_025", "read")])
+    Food.objects.create(id="FOOD-01", foods="시금치", component="칼륨")
+    Food.objects.create(id="FOOD-02", foods="바나나", component="칼륨")
+    Food.objects.create(id="FOOD-03", foods="생강차", component="진저롤")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/food-components/")
+    assert resp.status_code == 200
+    assert resp.json() == ["진저롤", "칼륨"]

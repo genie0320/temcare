@@ -15,6 +15,7 @@ from apps.accounts.permissions import AdminResourcePermission
 
 from .models import (
     Food,
+    FoodWeakness,
     Herb,
     HerbCard,
     HerbCardWeakness,
@@ -29,6 +30,8 @@ from .models import (
     Weakness,
 )
 from .serializers import (
+    FoodDetailSerializer,
+    FoodListSerializer,
     HerbDetailSerializer,
     HerbListSerializer,
     IllnessOptionSerializer,
@@ -43,6 +46,7 @@ from .serializers import (
 _WEAK_ID_RE = re.compile(r"^WEAK-(\d+)$")
 _TEM_ID_RE = re.compile(r"^TEM(\d+)$")
 _NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
+_FOOD_ID_RE = re.compile(r"^FOOD-(\d+)$")
 _HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
 
 
@@ -80,6 +84,15 @@ def _next_herb_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"HRB-{max_n + 1:02d}"
+
+
+def _next_food_id() -> str:
+    max_n = 0
+    for fid in Food.objects.values_list("id", flat=True):
+        m = _FOOD_ID_RE.match(fid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"FOOD-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -419,6 +432,78 @@ class HerbMechanismOptionsView(APIView):
 
     def get(self, request):
         values = HerbCard.objects.exclude(mechanism="").values_list("mechanism", flat=True)
+        return Response(sorted(set(values)))
+
+
+class FoodViewSet(ModelViewSet):
+    """식품군 마스터(adm_025). 영양소·약재와 달리 카드가 아니라 **단일 레코드 + 약점
+    체크박스** 구조다(64유형과 같은 §B 패턴).
+    """
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_025"
+    queryset = Food.objects.all()
+
+    def get_serializer_class(self):
+        return FoodListSerializer if self.action == "list" else FoodDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(foods__icontains=search)
+                | Q(id__icontains=search)
+                | Q(component__icontains=search)
+                | Q(description__icontains=search)
+            )
+        polarity = self.request.query_params.get("polarity")
+        if polarity:
+            qs = qs.filter(polarity=polarity)
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_food_id(), updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def _sync_weaknesses(self, instance):
+        """약점 태그를 요청 본문으로 통째로 교체한다(TemTypeViewSet._sync_children과 동일 패턴).
+        인스턴스 단위 delete()/create()만 쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        data = self.request.data
+        if "weakness_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("weakness_ids") or [])}
+        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
+        for wid in current - target:
+            FoodWeakness.objects.get(food=instance, weakness_id=wid).delete()
+        for wid in target - current:
+            FoodWeakness.objects.create(food=instance, weakness_id=wid)
+
+
+class FoodComponentOptionsView(APIView):
+    """핵심성분 입력란의 자동완성 후보(spec adm_025 2행: 자유텍스트+자동완성)."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_025"
+    required_action = "read"
+
+    def get(self, request):
+        values = Food.objects.exclude(component="").values_list("component", flat=True)
         return Response(sorted(set(values)))
 
 

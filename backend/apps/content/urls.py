@@ -8,6 +8,7 @@ router.register("weaknesses", views.WeaknessViewSet, basename="weakness")
 router.register("tem-types", views.TemTypeViewSet, basename="tem-type")
 router.register("nutrients", views.NutrientViewSet, basename="nutrient")
 router.register("herbs", views.HerbViewSet, basename="herb")
+router.register("foods", views.FoodViewSet, basename="food")
 
 urlpatterns = router.urls + [
     path("tem-type-candidates/nutrient-cards/", views.NutrientCardCandidatesView.as_view(), name="tem-type-nutrient-candidates"),
@@ -16,5 +17,6 @@ urlpatterns = router.urls + [
     path("illness-options/", views.IllnessOptionsView.as_view(), name="illness-options"),
     path("nutrient-perspectives/", views.NutrientPerspectiveOptionsView.as_view(), name="nutrient-perspectives"),
     path("herb-mechanisms/", views.HerbMechanismOptionsView.as_view(), name="herb-mechanisms"),
+    path("food-components/", views.FoodComponentOptionsView.as_view(), name="food-components"),
     path("image-upload/", views.ImageUploadView.as_view(), name="image-upload"),
 ]
