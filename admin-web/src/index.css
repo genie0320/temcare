@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* 관리자 디자인 토큰. 정본: docs/04_design_system.md §1·§2
+   관리자는 RN 전환 대상이 아니라서(docs/08_tech_stack.md §7) tokens.ts 없이
+   CSS 변수로 바로 관리한다. 컴포넌트는 역할색만 참조하고 원시 hex를 직접 쓰지 않는다. */
+:root {
+  /* 배경·표면 */
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
+  --border: #e4e8ec;
+  --border-strong: #cdd4db;
+
+  /* 텍스트 */
+  --text: #1f2a33;
+  --muted: #69747f;
+  --faint: #9aa4ad;
+
+  /* 주색 (그린) */
+  --primary: #2f8f6b;
+  --primary-dark: #256b52;
+  --primary-soft: #e7f4ee;
+
+  /* 강조 (오렌지) — 검수·주의 */
+  --accent: #e08a3c;
+  --accent-soft: #fbeede;
+
+  /* 위험 (레드) — 삭제·오류 */
+  --danger: #d15b52;
+  --danger-soft: #fbe9e7;
+
+  /* 정보 (블루) — 안내 노트 */
+  --info: #3a6ea5;
+  --info-soft: #e8f0f8;
+
+  /* 사이드바 */
+  --sidebar: #2e4053;
+  --sidebar-2: #26374a;
+  --sidebar-line: #3c5064;
+  --sidebar-txt: #c3ccd6;
+  --sidebar-active: #3aa37a;
+
+  /* 형태 */
+  --radius: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 3px rgba(31, 42, 51, 0.06), 0 1px 2px rgba(31, 42, 51, 0.04);
+
+  /* 필터 폭 통일 */
+  --filter-w: 176px;
+}
+
+body {
+  margin: 0;
+  font-family: 'Noto Sans KR', 'Malgun Gothic', -apple-system, sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+}

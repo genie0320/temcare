@@ -6,18 +6,21 @@
 
 **이 단계를 건너뛰면 나중에 전 코드를 다시 만져야 한다.**
 
-0. **`docs/08_tech_stack.md`를 먼저 읽는다.** 스택·저장소 구조·인증 방식이 거기 정해져 있다.
-1. 프로젝트 스캐폴딩(Django+DRF / Vite×2), PostgreSQL 연결, 마이그레이션
-   - `AUTH_USER_MODEL` 통합 형태로 반영(08 §3의 스키마 조정 1건)
-2. `schema/01_content_master.sql` + `schema/02_service_1st.sql` 적용
-3. **감사로그·접속기록을 데이터 접근 계층에 심는다** (`docs/02_architecture_constraints.md` §1)
-4. **권한 검사를 라우트 미들웨어에 심는다** (§2) — `pii_read` 분리 포함
-5. 관리자 로그인 + `admin_account` / `admin_role` / `admin_permission` 시드
-6. `DiagnosisProvider` 인터페이스 + `MockDiagnosisProvider` (§3)
+0. **`docs/08_tech_stack.md`를 먼저 읽는다.** 스택·저장소 구조·인증 방식이 거기 정해져 있다. ✅
+1. 프로젝트 스캐폴딩(Django+DRF / Vite×2), DB 연결(로컬 SQLite·CI/배포 PostgreSQL, §1·§6), 마이그레이션 ✅
+   - `AUTH_USER_MODEL` 통합 형태로 반영(08 §3의 스키마 조정 1건) ✅
+2. `schema/01_content_master.sql` + `schema/02_service_1st.sql` 적용 — **서비스 스키마(02) 반영 완료. 콘텐츠 마스터(01)는 M1에서 실제 모델로 옮긴다**
+3. **감사로그·접속기록을 데이터 접근 계층에 심는다** (`docs/02_architecture_constraints.md` §1) — ✅ `AuditedModel` 상속 시 자동 기록(시그널). `access_log`·권한거부 로그는 M1에서 실제 뷰가 붙을 때 채운다
+4. **권한 검사를 라우트 미들웨어에 심는다** (§2) — `pii_read` 분리 포함. ✅ `AdminResourcePermission` 클래스는 만듦, 실제 관리자 화면이 붙는 M1에서 검증
+5. 관리자 로그인 + `admin_account` / `admin_role` / `admin_permission` 시드 — ✅ `seed_demo`(최소 버전)
+6. `DiagnosisProvider` 인터페이스 + `MockDiagnosisProvider` (§3) — ✅. 문진은 로그인 없이 시작(`docs/02_architecture_constraints.md` §6)
 
-7. **빠른 확인 환경**(08 §6): `docker compose up -d` + `make dev` 두 줄로 시드 데이터가 든 화면이 뜨게 한다. `seed_demo` 멱등, mock 판별 기본값, 개발 전용 빠른 로그인, Vite dev proxy.
+7. **빠른 확인 환경**(08 §6): `make setup` + `make dev`(또는 `make dev-app`) 두 줄로 시드 데이터가 든 화면이 뜨게 한다. `seed_demo` 멱등 ✅, mock 판별 기본값 ✅, Vite dev proxy ✅. 개발 전용 빠른 로그인은 아직 — M1 관리자 로그인 화면과 함께 만든다.
+8. **CI 안전장치**(08 §9): GitHub Actions에서 실제 PostgreSQL로 `pytest` + `pip-audit`/`bandit`/`gitleaks`/`check --deploy`/감사로그 우회 검사. ✅ (`.github/workflows/ci.yml`)
 
-M0 완료 기준: **① `git clone` 후 명령 두 줄로 시드가 든 화면이 뜬다. ② 관리자로 로그인해 아무 레코드나 하나 수정하면 `audit_log`에 before/after가 남는다.**
+M0 완료 기준: **① `git clone` 후 명령 두 줄로 시드가 든 화면이 뜬다. ✅ ② 관리자로 로그인해 아무 레코드나 하나 수정하면 `audit_log`에 before/after가 남는다. ✅(자동 테스트로 증명, `apps/audit/tests.py`)**
+
+남은 것: 콘텐츠 마스터 스키마(01)를 실제 Django 모델로 옮기기, 개발 전용 빠른 로그인, 관리자 권한 매트릭스를 실제 화면에 적용 — 전부 M1에서 자연스럽게 채워진다.
 
 ## M1 — 관리자 콘텐츠 마스터
 

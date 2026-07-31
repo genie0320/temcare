@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+body {
+  margin: 0;
+  font-family: 'Noto Sans KR', 'Malgun Gothic', -apple-system, sans-serif;
+}

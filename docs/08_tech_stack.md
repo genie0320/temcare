@@ -119,7 +119,7 @@ REST_FRAMEWORK = {
 
 목표: **`git clone` 후 명령 두 줄이면 시드 데이터가 든 화면이 뜬다.**
 
-**로컬에 필요한 도구**: Python 3.12+, Node.js LTS, `uv`(백엔드 패키지 관리) — 이 셋만 있으면 된다. Docker·PostgreSQL 로컬 설치는 필요 없다(위 §1·아래 내용 참조). 2026-07-31 기준 `Genie-Blue`(8GB RAM) 환경에 Python 3.12.10 · Node 24.18.1 LTS · uv 0.11.32로 설치 확인함.
+**로컬에 필요한 도구**: Python 3.12+, Node.js LTS, `uv`(백엔드 패키지 관리), `make`(개발 명령 실행). Docker·PostgreSQL 로컬 설치는 필요 없다(위 §1·아래 내용 참조). 2026-07-31 기준 `Genie-Blue`(8GB RAM) 환경에 Python 3.12.10 · Node 24.18.1 LTS · uv 0.11.32 · GNU Make 4.4.1(winget `ezwinports.make`)로 설치 확인함. Make 실행 로직은 OS별 셸 차이를 피하려고 `scripts/*.py`(순수 파이썬)에 있다 — Windows/Mac/Linux 어디서나 동일하게 동작한다.
 
 **로컬 개발은 Docker를 쓰지 않는다(결정: 2026-07-31).** 개발 컴퓨터 사양이 낮은 경우(8GB RAM급)를 기준으로 잡는다 — Docker Desktop의 WSL2 백엔드는 그 자체로 1~2GB를 상시로 붙잡기 때문에, 저사양 환경에서는 이게 병목이 된다. 대신:
 
@@ -128,7 +128,9 @@ REST_FRAMEWORK = {
 - `DATABASE_URL` 환경변수로 백엔드를 전환한다: 로컬은 비워두면 SQLite 기본값, CI·배포는 PostgreSQL 연결 문자열.
 
 ```bash
-make dev                      # 마이그레이션 + 시드 + Django + Vite 동시 기동 (Docker 없음)
+make setup                    # 의존성 설치 + 마이그레이션 + 시드 (최초 1회, 언제든 다시 돌려도 안전)
+make dev                      # 백엔드 + 관리자 화면 동시 기동 (Docker 없음)
+make dev-app                  # 백엔드 + 고객 화면 동시 기동 — 관리자 대신 이걸 볼 때
 ```
 
 필수로 갖출 것:
