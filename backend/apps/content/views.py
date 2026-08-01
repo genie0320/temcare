@@ -23,6 +23,8 @@ from .models import (
     Nutrient,
     NutrientCard,
     NutrientCardWeakness,
+    Point,
+    PointWeakness,
     TemType,
     TemTypeCuration,
     TemTypeIllness,
@@ -37,6 +39,8 @@ from .serializers import (
     IllnessOptionSerializer,
     NutrientDetailSerializer,
     NutrientListSerializer,
+    PointDetailSerializer,
+    PointListSerializer,
     TemTypeDetailSerializer,
     TemTypeListSerializer,
     WeaknessDetailSerializer,
@@ -48,6 +52,7 @@ _TEM_ID_RE = re.compile(r"^TEM(\d+)$")
 _NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
 _FOOD_ID_RE = re.compile(r"^FOOD-(\d+)$")
 _HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
+_ACU_ID_RE = re.compile(r"^ACU-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -93,6 +98,15 @@ def _next_food_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"FOOD-{max_n + 1:02d}"
+
+
+def _next_point_id() -> str:
+    max_n = 0
+    for pid in Point.objects.values_list("id", flat=True):
+        m = _ACU_ID_RE.match(pid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"ACU-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -505,6 +519,64 @@ class FoodComponentOptionsView(APIView):
     def get(self, request):
         values = Food.objects.exclude(component="").values_list("component", flat=True)
         return Response(sorted(set(values)))
+
+
+class PointViewSet(ModelViewSet):
+    """혈자리 마스터(adm_026). 식품군(adm_025)과 같은 §B 구조 — 단일 레코드 + 약점
+    체크박스. `tip`은 spec [v2]에서 UI가 빠졌으므로 여기서 다루지 않는다(컬럼은 보존).
+    """
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_026"
+    queryset = Point.objects.all()
+
+    def get_serializer_class(self):
+        return PointListSerializer if self.action == "list" else PointDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(id__icontains=search)
+                | Q(hanja__icontains=search)
+                | Q(description__icontains=search)
+                | Q(location__icontains=search)
+            )
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_point_id(), updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def _sync_weaknesses(self, instance):
+        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
+        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        data = self.request.data
+        if "weakness_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("weakness_ids") or [])}
+        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
+        for wid in current - target:
+            PointWeakness.objects.get(point=instance, weakness_id=wid).delete()
+        for wid in target - current:
+            PointWeakness.objects.create(point=instance, weakness_id=wid)
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024

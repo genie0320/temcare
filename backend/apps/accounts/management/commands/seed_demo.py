@@ -18,9 +18,9 @@ ROLES = [
 ]
 
 # 관리자 화면(M1)이 붙을 때마다 resource id를 여기 추가한다.
-SUPER_RESOURCES = ["demo", "adm_003", "adm_002", "adm_022", "adm_023", "adm_025"]
+SUPER_RESOURCES = ["demo", "adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_026"]
 SUPER_ACTIONS = ["read", "write", "delete", "publish", "pii_read"]
-EDITOR_RESOURCES = ["adm_003", "adm_002", "adm_022", "adm_023", "adm_025"]
+EDITOR_RESOURCES = ["adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_026"]
 EDITOR_ACTIONS = ["read", "write", "delete", "publish"]  # 콘텐츠 에디터는 pii_read 없음
 
 # prototype/ollacare.sqlite → 콘텐츠 마스터 모델. docs/07_milestones.md M0 "남은 것".

@@ -15,6 +15,7 @@ const NAV = [
       { to: '/content/nutrients', icon: '💊', label: '영양소 마스터' },
       { to: '/content/herbs', icon: '🌿', label: '약재 마스터' },
       { to: '/content/foods', icon: '🥗', label: '식품군 마스터' },
+      { to: '/content/points', icon: '📍', label: '혈자리 마스터' },
     ],
   },
   {

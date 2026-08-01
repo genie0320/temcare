@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Food, Herb, Illness, Nutrient, TemType, Weakness
+from .models import Food, Herb, Illness, Nutrient, Point, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -255,6 +255,49 @@ class FoodDetailSerializer(serializers.ModelSerializer):
             "component",
             "description",
             "image",
+            "status",
+            "sort",
+            "weakness_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_weakness_ids(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+
+class PointListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_026). §B — 단일 레코드 + 약점 체크박스."""
+
+    weakness_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Point
+        fields = ["id", "name", "hanja", "description", "status", "weakness_names", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("name", flat=True))
+
+
+class PointDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_026). `tip`은 spec [v2]에서 입력란이 빠졌다(컬럼은 보존) — 이
+    화면에서 다루지 않으므로 시리얼라이저에도 넣지 않는다.
+    """
+
+    weakness_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Point
+        fields = [
+            "id",
+            "name",
+            "hanja",
+            "description",
+            "location",
+            "image",
+            "video",
             "status",
             "sort",
             "weakness_ids",

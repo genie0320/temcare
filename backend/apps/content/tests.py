@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.audit.models import AuditLog
-from apps.content.models import Food, Herb, HerbCard, Illness, Nutrient, NutrientCard, TemType, Weakness
+from apps.content.models import Food, Herb, HerbCard, Illness, Nutrient, NutrientCard, Point, TemType, Weakness
 
 
 def _make_admin(role_id, resources_actions):
@@ -550,3 +550,86 @@ def test_food_component_options_returns_distinct_values():
     resp = client.get("/api/content/food-components/")
     assert resp.status_code == 200
     assert resp.json() == ["진저롤", "칼륨"]
+
+
+@pytest.mark.django_db
+def test_point_create_with_weaknesses():
+    user = _make_admin("editor", [("adm_026", "read"), ("adm_026", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+
+    resp = client.post(
+        "/api/content/points/",
+        {
+            "name": "합곡",
+            "hanja": "合谷",
+            "description": "두통·통증 완화에 도움",
+            "location": "엄지와 검지 사이 갈퀴막",
+            "video": "https://example.com/hapgok",
+            "weakness_ids": [w1.id],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "ACU-01"  # 서버 채번
+    assert body["hanja"] == "合谷"
+    assert body["weakness_ids"] == [w1.id]
+    assert "tip" not in body
+
+
+@pytest.mark.django_db
+def test_point_update_replaces_weaknesses_not_appends():
+    user = _make_admin("editor", [("adm_026", "read"), ("adm_026", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+    point = Point.objects.create(id="ACU-01", name="합곡")
+    point.weaknesses.add(w1)
+
+    resp = client.patch("/api/content/points/ACU-01/", {"weakness_ids": [w2.id]}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["weakness_ids"] == [w2.id]
+
+
+@pytest.mark.django_db
+def test_point_list_shows_weakness_names():
+    user = _make_admin("editor", [("adm_026", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    point = Point.objects.create(id="ACU-01", name="합곡", hanja="合谷")
+    point.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/points/")
+    assert resp.status_code == 200
+    body = resp.json()[0]
+    assert body["weakness_names"] == ["추위"]
+    assert body["hanja"] == "合谷"
+
+
+@pytest.mark.django_db
+def test_point_delete_is_audited():
+    user = _make_admin("editor", [("adm_026", "read"), ("adm_026", "write"), ("adm_026", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Point.objects.create(id="ACU-01", name="합곡")
+    resp = client.delete("/api/content/points/ACU-01/")
+    assert resp.status_code == 204
+    assert not Point.objects.filter(id="ACU-01").exists()
+    assert AuditLog.objects.filter(target_table="point", target_id="ACU-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_point_write_denied_without_adm_026_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/points/", {"name": "합곡"}, format="json")
+    assert resp.status_code == 403

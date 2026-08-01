@@ -9,6 +9,8 @@ import { HerbListPage } from './pages/HerbListPage'
 import { LoginPage } from './pages/LoginPage'
 import { NutrientDetailPage } from './pages/NutrientDetailPage'
 import { NutrientListPage } from './pages/NutrientListPage'
+import { PointDetailPage } from './pages/PointDetailPage'
+import { PointListPage } from './pages/PointListPage'
 import { TemTypeDetailPage } from './pages/TemTypeDetailPage'
 import { TemTypeListPage } from './pages/TemTypeListPage'
 import { WeaknessDetailPage } from './pages/WeaknessDetailPage'
@@ -51,6 +53,8 @@ function App() {
           <Route path="/content/herbs/:id" element={<HerbDetailPage />} />
           <Route path="/content/foods" element={<FoodListPage />} />
           <Route path="/content/foods/:id" element={<FoodDetailPage />} />
+          <Route path="/content/points" element={<PointListPage />} />
+          <Route path="/content/points/:id" element={<PointDetailPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
