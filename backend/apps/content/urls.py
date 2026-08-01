@@ -10,6 +10,7 @@ router.register("nutrients", views.NutrientViewSet, basename="nutrient")
 router.register("herbs", views.HerbViewSet, basename="herb")
 router.register("foods", views.FoodViewSet, basename="food")
 router.register("points", views.PointViewSet, basename="point")
+router.register("health-signs", views.HealthSignViewSet, basename="health-sign")
 
 urlpatterns = router.urls + [
     path("tem-type-candidates/nutrient-cards/", views.NutrientCardCandidatesView.as_view(), name="tem-type-nutrient-candidates"),

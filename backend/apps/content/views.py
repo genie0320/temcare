@@ -16,6 +16,8 @@ from apps.accounts.permissions import AdminResourcePermission
 from .models import (
     Food,
     FoodWeakness,
+    HealthSign,
+    HealthSignWeakness,
     Herb,
     HerbCard,
     HerbCardWeakness,
@@ -34,6 +36,8 @@ from .models import (
 from .serializers import (
     FoodDetailSerializer,
     FoodListSerializer,
+    HealthSignDetailSerializer,
+    HealthSignListSerializer,
     HerbDetailSerializer,
     HerbListSerializer,
     IllnessOptionSerializer,
@@ -53,6 +57,7 @@ _NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
 _FOOD_ID_RE = re.compile(r"^FOOD-(\d+)$")
 _HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
 _ACU_ID_RE = re.compile(r"^ACU-(\d+)$")
+_SIG_ID_RE = re.compile(r"^SIG-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -107,6 +112,15 @@ def _next_point_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"ACU-{max_n + 1:02d}"
+
+
+def _next_health_sign_id() -> str:
+    max_n = 0
+    for sid in HealthSign.objects.values_list("id", flat=True):
+        m = _SIG_ID_RE.match(sid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"SIG-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -577,6 +591,56 @@ class PointViewSet(ModelViewSet):
             PointWeakness.objects.get(point=instance, weakness_id=wid).delete()
         for wid in target - current:
             PointWeakness.objects.create(point=instance, weakness_id=wid)
+
+
+class HealthSignViewSet(ModelViewSet):
+    """건강신호 마스터(adm_007a). §B 중 가장 단순한 구조 — 단일 레코드 + 약점 체크박스뿐."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_007a"
+    queryset = HealthSign.objects.all()
+
+    def get_serializer_class(self):
+        return HealthSignListSerializer if self.action == "list" else HealthSignDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(id__icontains=search) | Q(note__icontains=search))
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_health_sign_id(), updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_weaknesses(instance)
+
+    def _sync_weaknesses(self, instance):
+        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
+        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        data = self.request.data
+        if "weakness_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("weakness_ids") or [])}
+        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
+        for wid in current - target:
+            HealthSignWeakness.objects.get(sign=instance, weakness_id=wid).delete()
+        for wid in target - current:
+            HealthSignWeakness.objects.create(sign=instance, weakness_id=wid)
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024

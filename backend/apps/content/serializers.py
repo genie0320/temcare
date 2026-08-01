@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Food, Herb, Illness, Nutrient, Point, TemType, Weakness
+from .models import Food, HealthSign, Herb, Illness, Nutrient, Point, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -298,6 +298,46 @@ class PointDetailSerializer(serializers.ModelSerializer):
             "location",
             "image",
             "video",
+            "status",
+            "sort",
+            "weakness_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_weakness_ids(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+
+class HealthSignListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_007a). §B 중 가장 단순한 구조 — 단일 레코드 + 약점 체크박스."""
+
+    weakness_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HealthSign
+        fields = ["id", "name", "note", "status", "weakness_names", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("name", flat=True))
+
+
+class HealthSignDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_007a). 약점은 모델 필드가 아니므로 읽기는 SerializerMethodField,
+    쓰기는 뷰(HealthSignViewSet._sync_weaknesses)에서 request.data를 직접 받아 처리한다.
+    """
+
+    weakness_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HealthSign
+        fields = [
+            "id",
+            "name",
+            "note",
+            "image",
             "status",
             "sort",
             "weakness_ids",

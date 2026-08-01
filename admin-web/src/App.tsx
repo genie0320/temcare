@@ -4,6 +4,8 @@ import { AdminLayout } from './components/AdminLayout'
 import { DesignSystemPage } from './pages/DesignSystemPage'
 import { FoodDetailPage } from './pages/FoodDetailPage'
 import { FoodListPage } from './pages/FoodListPage'
+import { HealthSignDetailPage } from './pages/HealthSignDetailPage'
+import { HealthSignListPage } from './pages/HealthSignListPage'
 import { HerbDetailPage } from './pages/HerbDetailPage'
 import { HerbListPage } from './pages/HerbListPage'
 import { LoginPage } from './pages/LoginPage'
@@ -55,6 +57,8 @@ function App() {
           <Route path="/content/foods/:id" element={<FoodDetailPage />} />
           <Route path="/content/points" element={<PointListPage />} />
           <Route path="/content/points/:id" element={<PointDetailPage />} />
+          <Route path="/content/health-signs" element={<HealthSignListPage />} />
+          <Route path="/content/health-signs/:id" element={<HealthSignDetailPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

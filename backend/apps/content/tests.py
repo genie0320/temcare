@@ -3,7 +3,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.audit.models import AuditLog
-from apps.content.models import Food, Herb, HerbCard, Illness, Nutrient, NutrientCard, Point, TemType, Weakness
+from apps.content.models import Food, HealthSign, Herb, HerbCard, Illness, Nutrient, NutrientCard, Point, TemType, Weakness
 
 
 def _make_admin(role_id, resources_actions):
@@ -632,4 +632,76 @@ def test_point_write_denied_without_adm_026_permission():
     client.force_authenticate(user=user)
 
     resp = client.post("/api/content/points/", {"name": "합곡"}, format="json")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_health_sign_create_with_weaknesses():
+    user = _make_admin("editor", [("adm_007a", "read"), ("adm_007a", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+
+    resp = client.post(
+        "/api/content/health-signs/",
+        {"name": "척추/관절이 아프다", "note": "짧은 관점", "weakness_ids": [w1.id]},
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "SIG-01"  # 서버 채번
+    assert body["weakness_ids"] == [w1.id]
+
+
+@pytest.mark.django_db
+def test_health_sign_update_replaces_weaknesses_not_appends():
+    user = _make_admin("editor", [("adm_007a", "read"), ("adm_007a", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+    sign = HealthSign.objects.create(id="SIG-01", name="척추/관절이 아프다")
+    sign.weaknesses.add(w1)
+
+    resp = client.patch("/api/content/health-signs/SIG-01/", {"weakness_ids": [w2.id]}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["weakness_ids"] == [w2.id]
+
+
+@pytest.mark.django_db
+def test_health_sign_list_shows_weakness_names():
+    user = _make_admin("editor", [("adm_007a", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    sign = HealthSign.objects.create(id="SIG-01", name="척추/관절이 아프다", note="짧은 관점")
+    sign.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/health-signs/")
+    assert resp.status_code == 200
+    assert resp.json()[0]["weakness_names"] == ["추위"]
+
+
+@pytest.mark.django_db
+def test_health_sign_delete_is_audited():
+    user = _make_admin("editor", [("adm_007a", "read"), ("adm_007a", "write"), ("adm_007a", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    HealthSign.objects.create(id="SIG-01", name="척추/관절이 아프다")
+    resp = client.delete("/api/content/health-signs/SIG-01/")
+    assert resp.status_code == 204
+    assert not HealthSign.objects.filter(id="SIG-01").exists()
+    assert AuditLog.objects.filter(target_table="health_sign", target_id="SIG-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_health_sign_write_denied_without_adm_007a_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/health-signs/", {"name": "척추/관절이 아프다"}, format="json")
     assert resp.status_code == 403
