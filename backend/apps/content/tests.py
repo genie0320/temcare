@@ -4,6 +4,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.audit.models import AuditLog
 from apps.content.models import (
+    Article,
     Food,
     HealthSign,
     Herb,
@@ -853,4 +854,92 @@ def test_product_write_denied_without_adm_027_permission():
     client.force_authenticate(user=user)
 
     resp = client.post("/api/content/products/", {"name": "생강 온열팩"}, format="json")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_article_create_with_weakness_and_references():
+    user = _make_admin("editor", [("adm_024", "read"), ("adm_024", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    food = Food.objects.create(id="FOOD-01", foods="생강차")
+    point = Point.objects.create(id="ACU-01", name="합곡")
+    product = Product.objects.create(id="PRD-01", name="생강 온열팩")
+
+    resp = client.post(
+        "/api/content/articles/",
+        {
+            "kind": "식이",
+            "title": "위장마사지",
+            "body": "<p>본문</p>",
+            "weakness_ids": [w1.id],
+            "food_ids": [food.id],
+            "point_ids": [point.id],
+            "product_ids": [product.id],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "ART-01"  # 서버 채번
+    assert body["weakness_ids"] == [w1.id]
+    assert body["food_ids"] == [food.id]
+    assert body["point_ids"] == [point.id]
+    assert body["product_ids"] == [product.id]
+
+
+@pytest.mark.django_db
+def test_article_update_replaces_references_not_appends():
+    user = _make_admin("editor", [("adm_024", "read"), ("adm_024", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    food1 = Food.objects.create(id="FOOD-01", foods="생강차")
+    food2 = Food.objects.create(id="FOOD-02", foods="대추차")
+    article = Article.objects.create(id="ART-01", kind="식이", title="위장마사지")
+    article.linked_foods.add(food1)
+
+    resp = client.patch("/api/content/articles/ART-01/", {"food_ids": [food2.id]}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["food_ids"] == [food2.id]
+
+
+@pytest.mark.django_db
+def test_article_list_shows_kind_and_weakness_names():
+    user = _make_admin("editor", [("adm_024", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    article = Article.objects.create(id="ART-01", kind="식이", title="위장마사지")
+    article.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/articles/")
+    assert resp.status_code == 200
+    body = resp.json()[0]
+    assert body["kind"] == "식이"
+    assert body["weakness_names"] == ["추위"]
+
+
+@pytest.mark.django_db
+def test_article_delete_is_audited():
+    user = _make_admin("editor", [("adm_024", "read"), ("adm_024", "write"), ("adm_024", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Article.objects.create(id="ART-01", kind="식이", title="위장마사지")
+    resp = client.delete("/api/content/articles/ART-01/")
+    assert resp.status_code == 204
+    assert not Article.objects.filter(id="ART-01").exists()
+    assert AuditLog.objects.filter(target_table="article", target_id="ART-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_article_write_denied_without_adm_024_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/articles/", {"kind": "식이", "title": "위장마사지"}, format="json")
     assert resp.status_code == 403

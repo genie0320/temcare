@@ -19,6 +19,7 @@ const NAV = [
       { to: '/content/health-signs', icon: '🩺', label: '건강신호 마스터' },
       { to: '/content/illnesses', icon: '🔮', label: '예측질환 마스터' },
       { to: '/content/products', icon: '🛍️', label: '제품 마스터' },
+      { to: '/content/articles', icon: '📄', label: '요법관리 마스터' },
     ],
   },
   {

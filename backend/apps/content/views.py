@@ -14,6 +14,11 @@ from apps.accounts.models import AdminPermission
 from apps.accounts.permissions import AdminResourcePermission
 
 from .models import (
+    Article,
+    ArticleFood,
+    ArticlePoint,
+    ArticleProduct,
+    ArticleWeakness,
     Food,
     FoodWeakness,
     HealthSign,
@@ -36,6 +41,8 @@ from .models import (
     Weakness,
 )
 from .serializers import (
+    ArticleDetailSerializer,
+    ArticleListSerializer,
     FoodDetailSerializer,
     FoodListSerializer,
     HealthSignDetailSerializer,
@@ -66,6 +73,7 @@ _ACU_ID_RE = re.compile(r"^ACU-(\d+)$")
 _SIG_ID_RE = re.compile(r"^SIG-(\d+)$")
 _ILL_ID_RE = re.compile(r"^ILL-(\d+)$")
 _PRD_ID_RE = re.compile(r"^PRD-(\d+)$")
+_ART_ID_RE = re.compile(r"^ART-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -147,6 +155,15 @@ def _next_product_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"PRD-{max_n + 1:02d}"
+
+
+def _next_article_id() -> str:
+    max_n = 0
+    for aid in Article.objects.values_list("id", flat=True):
+        m = _ART_ID_RE.match(aid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"ART-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -750,6 +767,101 @@ class ProductViewSet(ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self._actor_label())
+
+
+class ArticleViewSet(ModelViewSet):
+    """요법관리 마스터(adm_024). 유형(kind)·본문에 더해 약점·식품군·혈자리·제품 4개 연결을 갖는다."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_024"
+    queryset = Article.objects.all()
+
+    def get_serializer_class(self):
+        return ArticleListSerializer if self.action == "list" else ArticleDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(id__icontains=search) | Q(body__icontains=search))
+        kind = self.request.query_params.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+        weakness = self.request.query_params.get("weakness")
+        if weakness:
+            qs = qs.filter(weaknesses__id=weakness)
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs.distinct()
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        instance = serializer.save(id=_next_article_id(), updated_by=self._actor_label())
+        self._sync_all(instance)
+
+    def perform_update(self, serializer):
+        instance = serializer.save(updated_by=self._actor_label())
+        self._sync_all(instance)
+
+    def _sync_all(self, instance):
+        self._sync_weaknesses(instance)
+        self._sync_foods(instance)
+        self._sync_points(instance)
+        self._sync_products(instance)
+
+    def _sync_weaknesses(self, instance):
+        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
+        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        data = self.request.data
+        if "weakness_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("weakness_ids") or [])}
+        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
+        for wid in current - target:
+            ArticleWeakness.objects.get(article=instance, weakness_id=wid).delete()
+        for wid in target - current:
+            ArticleWeakness.objects.create(article=instance, weakness_id=wid)
+
+    def _sync_foods(self, instance):
+        """참고정보(식품군)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
+        data = self.request.data
+        if "food_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("food_ids") or [])}
+        current = {str(w) for w in instance.linked_foods.values_list("id", flat=True)}
+        for fid in current - target:
+            ArticleFood.objects.get(article=instance, food_id=fid).delete()
+        for fid in target - current:
+            ArticleFood.objects.create(article=instance, food_id=fid)
+
+    def _sync_points(self, instance):
+        """참고정보(혈자리)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
+        data = self.request.data
+        if "point_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("point_ids") or [])}
+        current = {str(w) for w in instance.linked_points.values_list("id", flat=True)}
+        for pid in current - target:
+            ArticlePoint.objects.get(article=instance, point_id=pid).delete()
+        for pid in target - current:
+            ArticlePoint.objects.create(article=instance, point_id=pid)
+
+    def _sync_products(self, instance):
+        """참고정보(제품)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
+        data = self.request.data
+        if "product_ids" not in data:
+            return
+        target = {str(w) for w in (data.get("product_ids") or [])}
+        current = {str(w) for w in instance.linked_products.values_list("id", flat=True)}
+        for pid in current - target:
+            ArticleProduct.objects.get(article=instance, product_id=pid).delete()
+        for pid in target - current:
+            ArticleProduct.objects.create(article=instance, product_id=pid)
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024

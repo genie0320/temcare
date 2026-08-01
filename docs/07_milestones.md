@@ -2,19 +2,20 @@
 
 > 순서에 근거가 있다. 임의로 바꾸면 나중에 되돌아가야 하는 지점이 있다.
 
-## 지금 상태 (세션 인수인계 — 2026-08-01 업데이트, 체크포인트 10 완료)
+## 지금 상태 (세션 인수인계 — 2026-08-01 업데이트, 체크포인트 11 완료 — M1 전체 완료)
 
-**M0 완료 + M1 아홉 번째 화면(제품)까지 실동작.** 약점(adm_003) → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) 전부 목록·상세 CRUD가 브라우저에서 실데이터로 끝까지 확인됐다.
+**M0 완료 + M1 전체 10개 화면 실동작.** 약점(adm_003) → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024) 전부 목록·상세 CRUD가 브라우저에서 실데이터로 끝까지 확인됐다. **M1이 여기서 끝난다.**
 
-- **바로 이어서 할 일**: M1 마지막 화면인 요법관리(adm_024, `article` 테이블)부터. 지금까지와 다르게 본문/참고정보(제품·식품·혈자리 연결) 등 구조가 더 복잡할 가능성이 크다 — 프로토타입·스펙을 반드시 먼저 확인할 것. 이게 끝나면 M1 전체 완료.
-- **재사용 가능한 공통 컴포넌트(전부 `/system/design`에 살아있는 카탈로그로 모여 있다)**: `DataTable`(Column.width로 공통열 폭 고정)·`Card`/`DetailLayout`·`PublishBox`·`MetaPanel`·`FormRow`/`TextInput`(자동완성 listOptions 지원)/`TextArea`/`SegToggle`·`WeaknessTagPicker`·`ImageField`(파일 선택→256px 축소→업로드→URL 저장)·`RepeatableCards`(§C 카드 반복, 영양소/약재가 씀)·`PickerModal`/`CuratedPickList`(64유형 큐레이션)·`IllnessRateRows`·`BodySlider`·`StatusBadge`. adm_022 이후 화면은 전부 이 조합만으로 완성됐고 새 공통 컴포넌트가 거의 필요 없어졌다.
+- **바로 이어서 할 일**: M2(고객 코어 플로우)부터 시작한다. `docs/06_decisions.md` #13, `docs/02_architecture_constraints.md` §6을 먼저 읽을 것 — 문진이 로그인보다 먼저라는 순서 변경 근거가 거기 있다. 스플래시 → 문진(mock 판별) → 결과 티저 순.
+- **재사용 가능한 공통 컴포넌트(전부 `/system/design`에 살아있는 카탈로그로 모여 있다)**: `DataTable`(Column.width로 공통열 폭 고정)·`Card`/`DetailLayout`·`PublishBox`·`MetaPanel`·`FormRow`/`TextInput`(자동완성 listOptions 지원)/`TextArea`/`SegToggle`·`WeaknessTagPicker`·`ImageField`(파일 선택→256px 축소→업로드→URL 저장)·`RepeatableCards`(§C 카드 반복)·`PickerModal`/`CuratedPickList`(약점 필터 있는 큐레이션)/`ReferencePickList`(약점 필터 없는 참고정보 연결, adm_024가 씀)·`RichTextEditor`(경량 리치에디터, contentEditable+execCommand)·`IllnessRateRows`·`BodySlider`·`StatusBadge`. M1 전체에서 새로 만든 도메인 컴포넌트는 이 목록이 전부다.
 - **체크포인트 4(영양소)**: 대표 이미지를 처음엔 base64 인라인으로 만들었다가, `docs/04_design_system.md` §4(파일 스토리지 + 경로만 DB) 확인 후 되돌렸다 — 왜 08과 04를 같이 봐야 하는지는 `docs/06_decisions.md` #20. 실제 파일 업로드(`POST /api/content/image-upload/` → Django `default_storage` → URL 저장) 구현. §C 반복 카드 리스트 패턴을 `RepeatableCards`로 처음 구현. 뒤이어 프로토타입 '디자인 시스템' 카탈로그를 `/system/design`으로 이식(`docs/06_decisions.md` #22), CSS에서 빠져 있던 `.btn.xs` 발견·추가, 목록 상태 열 폭 고정(`docs/05_screen_conventions.md` A-3-1).
 - **체크포인트 5~9(약재·식품군·혈자리·건강신호·예측질환)**: §C(카드 반복)와 §B(단일 레코드+약점 체크박스) 두 패턴이 예상대로 재사용됐다 — 다섯 다 새 공통 컴포넌트 없이 조립만으로 끝났다. 핵심성분·효능기전처럼 반복되는 "자유텍스트+자동완성" 패턴은 `TextInput`에 `listOptions` prop을 추가해 흡수했다. 예측질환은 건강신호와 필드 구조가 완전히 동일(`name`/`description`/`image`+약점) — `category`는 모델엔 있지만 프로토타입처럼 UI에 노출하지 않고 값만 보존.
 - **체크포인트 10(제품)**: 지금까지 유일하게 약점 태그가 없는 구조 — `name`/`description`/`image`/`url`뿐이다(§B도 아닌 최단순형). `WeaknessTagPicker` 대신 URL `TextInput`+힌트 텍스트만 있어 뷰셋에 `_sync_weaknesses`가 아예 없다.
+- **체크포인트 11(요법관리, M1 마지막)**: M1에서 가장 복잡한 화면 — 유형(kind, `SegToggle` 4옵션)·경량 리치에디터(본문, 새 `RichTextEditor` 컴포넌트)·약점 다중선택(필수)·참고정보 3종(식품군·혈자리·제품, 새 `ReferencePickList` 컴포넌트로 약점 필터 없이 마스터 전체에서 선택)·대표이미지·영상URL까지 총 4개의 m2m 연결(약점+식품+혈자리+제품)을 한 화면에서 다룬다. 뷰셋에 `_sync_weaknesses`/`_sync_foods`/`_sync_points`/`_sync_products` 4개가 각각 인스턴스 단위 delete()/create()로 존재한다. 저장 후 사용자 요청으로 대표이미지 위치를 참고정보 카드에서 기본정보 카드(설명 아래·연결약점 위)로 옮겼다.
 - **로컬 개발 DB 유의사항**: 화면에서 저장(카드 "통째로 교체")한 뒤 `seed_demo`를 재실행하면 카드가 중복될 수 있다 — 원인과 대처는 `docs/06_decisions.md` #21.
-- **브라우저 자동화 유의사항**: 헤드리스 브라우저 도구의 스크린샷 해상도와 실제 뷰포트가 안 맞을 때가 있다 — 좌표 클릭이 엉뚱한 요소를 때릴 수 있다. 클릭이 안 먹히면 `read_page`로 `ref_N`을 얻어 `ref` 기반 클릭/`form_input`으로 바꿀 것(좌표 계산에 안 걸림).
-- **테스트**: 백엔드 66개 통과(`pytest`), bandit·감사로그 우회 검사·`tsc -b`·`oxlint` 전부 클린. 일곱 화면(영양소·약재·식품군·혈자리·건강신호·예측질환·제품) 모두 브라우저로 목록→상세→저장→재조회 라운드트립 + 신규 생성 + 이미지 업로드/자동완성 + 삭제(API 직접 확인, `window.confirm`은 헤드리스 한계로 버튼 클릭까지만) 확인함.
-- **아직 안 한 것**: 요법관리(adm_024), "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO, `window.confirm` 삭제 흐름은 헤드리스 자동화로 검증 불가(수동 확인만 가능).
+- **브라우저 자동화 유의사항**: 헤드리스 브라우저 도구의 스크린샷 해상도와 실제 뷰포트가 안 맞을 때가 있다 — 좌표 클릭이 엉뚱한 요소를 때릴 수 있다. 클릭이 안 먹히면 `read_page`로 `ref_N`을 얻어 `ref` 기반 클릭/`form_input`으로 바꿀 것(좌표 계산에 안 걸림). 목록 화면의 테이블 행(`<tr onClick>`)은 접근성 트리에 인터랙티브 요소로 안 잡히므로, 상세 화면 진입은 좌표 클릭 대신 URL 직접 이동(`/content/xxx/ID`)이 더 안정적이다.
+- **테스트**: 백엔드 71개 통과(`pytest`), bandit·감사로그 우회 검사·`tsc -b`·`oxlint` 전부 클린. M1 10개 화면 전부 브라우저로 목록→상세→저장→재조회 라운드트립 + 신규 생성 + 삭제(API 직접 확인, `window.confirm`은 헤드리스 한계로 버튼 클릭까지만) 확인함. 요법관리는 추가로 리치에디터 HTML 저장, 참고정보 피커 모달 선택→저장→API 확인까지 검증.
+- **아직 안 한 것**: "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO, `window.confirm` 삭제 흐름은 헤드리스 자동화로 검증 불가(수동 확인만 가능). M2(고객 코어 플로우)는 아직 시작 전.
 - **이 컴퓨터(`Genie-Blue`, 8GB RAM)에 설치된 도구**: Python 3.12 · Node.js LTS · uv · GNU Make(`ezwinports.make`) · GitHub CLI(`gh`, 인증됨) — 전부 winget으로 설치, PATH는 터미널 재시작해야 새로 인식됨(설치 직후만 해당)
 - **로컬 개발 명령**: `make setup`(최초 1회) → `make dev`(관리자 화면) 또는 `make dev-app`(고객 화면). Docker 안 씀 — DB는 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16)
 - 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #17까지).
@@ -43,12 +44,12 @@ M0 완료 기준: **① `git clone` 후 명령 두 줄로 시드가 든 화면�
 
 프로토타입에 **이미 동작하는 구현이 있다.** 화면 구조·필드·상호작용을 그대로 옮기고 저장소만 실 DB로 바꾼다. 새로 설계할 것이 거의 없는 구간이다.
 
-순서: ~~약점(adm_003)~~ ✅ → ~~64유형(adm_002)~~ ✅ → ~~영양소(adm_022)~~ ✅ → ~~약재(adm_023)~~ ✅ → ~~식품군(adm_025)~~ ✅ → ~~혈자리(adm_026)~~ ✅ → ~~건강신호(adm_007a)~~ ✅ → ~~예측질환(adm_007b)~~ ✅ → ~~제품(adm_027)~~ ✅ → 요법관리(adm_024)
+순서: ~~약점(adm_003)~~ ✅ → ~~64유형(adm_002)~~ ✅ → ~~영양소(adm_022)~~ ✅ → ~~약재(adm_023)~~ ✅ → ~~식품군(adm_025)~~ ✅ → ~~혈자리(adm_026)~~ ✅ → ~~건강신호(adm_007a)~~ ✅ → ~~예측질환(adm_007b)~~ ✅ → ~~제품(adm_027)~~ ✅ → ~~요법관리(adm_024)~~ ✅ — **M1 완료**
 
 - 약점을 먼저 하는 이유: 모든 콘텐츠가 약점 태그로 연결되므로 이것이 없으면 나머지를 만들 수 없다.
 - 64유형이 그다음인 이유: 큐레이션이 영양·약재 카드를 참조하므로, 카드가 생긴 뒤 큐레이션 부분만 나중에 채워도 된다.
 - 공통 규격은 `docs/05_screen_conventions.md`(화면 구조)·`docs/04_design_system.md`(컴포넌트 매핑·이미지 위젯 규칙 등) 둘 다 — 화면 구현 전 둘 다 확인할 것(`docs/06_decisions.md` #20 — 하나만 보고 결정했다가 되돌린 사례). **첫 화면(약점)에서 공통 컴포넌트를 제대로 만들어 두면 나머지는 조립이다.** → 컴포넌트는 `admin-web/src/components/`에 있다(`DataTable`/`DetailLayout`/`PublishBox`/`MetaPanel`/`FormControls`/`StatusBadge`/`WeaknessTagPicker`/`PickerModal`/`CuratedPickList`/`RepeatableCards`/`ImageField`).
-- 약재(adm_023)·식품군(adm_025)·혈자리(adm_026)·건강신호(adm_007a)·예측질환(adm_007b)·제품(adm_027) 완료. 요법관리(adm_024)는 M1 마지막 화면이며 `article` 테이블 — 지금까지 화면과 달리 본문·참고정보 연결(제품/식품/혈자리) 구조가 있을 가능성이 커서 스펙·프로토타입을 반드시 먼저 확인한다.
+- M1 10개 화면 전부 완료. 마지막 요법관리(adm_024)는 본문(리치에디터)·참고정보 연결(식품/혈자리/제품) 구조로 예상대로 가장 복잡했다 — 새 컴포넌트 `RichTextEditor`·`ReferencePickList` 추가.
 
 ## M2 — 고객 코어 플로우
 

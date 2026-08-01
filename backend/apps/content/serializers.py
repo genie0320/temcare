@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Food, HealthSign, Herb, Illness, Nutrient, Point, Product, TemType, Weakness
+from .models import Article, Food, HealthSign, Herb, Illness, Nutrient, Point, Product, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -349,6 +349,63 @@ class HealthSignDetailSerializer(serializers.ModelSerializer):
 
     def get_weakness_ids(self, obj):
         return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+
+class ArticleListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_024). 유형(kind)·항목명(title)·연결약점만 노출."""
+
+    weakness_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Article
+        fields = ["id", "kind", "title", "status", "weakness_names", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("name", flat=True))
+
+
+class ArticleDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_024). 약점·식품군·혈자리·제품 연결은 모델 필드가 아니므로 읽기는
+    SerializerMethodField, 쓰기는 뷰(ArticleViewSet._sync_*)에서 request.data를 직접 받아 처리한다.
+    """
+
+    weakness_ids = serializers.SerializerMethodField()
+    food_ids = serializers.SerializerMethodField()
+    point_ids = serializers.SerializerMethodField()
+    product_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Article
+        fields = [
+            "id",
+            "kind",
+            "title",
+            "body",
+            "image",
+            "video",
+            "status",
+            "sort",
+            "weakness_ids",
+            "food_ids",
+            "point_ids",
+            "product_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_weakness_ids(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+    def get_food_ids(self, obj):
+        return list(obj.linked_foods.order_by("sort").values_list("id", flat=True))
+
+    def get_point_ids(self, obj):
+        return list(obj.linked_points.order_by("sort").values_list("id", flat=True))
+
+    def get_product_ids(self, obj):
+        return list(obj.linked_products.order_by("sort").values_list("id", flat=True))
 
 
 class ProductListSerializer(serializers.ModelSerializer):
