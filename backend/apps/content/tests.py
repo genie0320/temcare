@@ -705,3 +705,75 @@ def test_health_sign_write_denied_without_adm_007a_permission():
 
     resp = client.post("/api/content/health-signs/", {"name": "척추/관절이 아프다"}, format="json")
     assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_illness_create_with_weaknesses():
+    user = _make_admin("editor", [("adm_007b", "read"), ("adm_007b", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+
+    resp = client.post(
+        "/api/content/illnesses/",
+        {"name": "소화기질환", "description": "질환 상세 설명", "weakness_ids": [w1.id]},
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "ILL-01"  # 서버 채번
+    assert body["weakness_ids"] == [w1.id]
+
+
+@pytest.mark.django_db
+def test_illness_update_replaces_weaknesses_not_appends():
+    user = _make_admin("editor", [("adm_007b", "read"), ("adm_007b", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    w2 = Weakness.objects.create(id="WEAK-02", name="소화불량")
+    illness = Illness.objects.create(id="ILL-01", name="소화기질환")
+    illness.weaknesses.add(w1)
+
+    resp = client.patch("/api/content/illnesses/ILL-01/", {"weakness_ids": [w2.id]}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["weakness_ids"] == [w2.id]
+
+
+@pytest.mark.django_db
+def test_illness_list_shows_weakness_names():
+    user = _make_admin("editor", [("adm_007b", "read")])
+    w1 = Weakness.objects.create(id="WEAK-01", name="추위")
+    illness = Illness.objects.create(id="ILL-01", name="소화기질환", description="질환 상세 설명")
+    illness.weaknesses.add(w1)
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/illnesses/")
+    assert resp.status_code == 200
+    assert resp.json()[0]["weakness_names"] == ["추위"]
+
+
+@pytest.mark.django_db
+def test_illness_delete_is_audited():
+    user = _make_admin("editor", [("adm_007b", "read"), ("adm_007b", "write"), ("adm_007b", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Illness.objects.create(id="ILL-01", name="소화기질환")
+    resp = client.delete("/api/content/illnesses/ILL-01/")
+    assert resp.status_code == 204
+    assert not Illness.objects.filter(id="ILL-01").exists()
+    assert AuditLog.objects.filter(target_table="illness", target_id="ILL-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_illness_write_denied_without_adm_007b_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/illnesses/", {"name": "소화기질환"}, format="json")
+    assert resp.status_code == 403

@@ -17,6 +17,7 @@ const NAV = [
       { to: '/content/foods', icon: '🥗', label: '식품군 마스터' },
       { to: '/content/points', icon: '📍', label: '혈자리 마스터' },
       { to: '/content/health-signs', icon: '🩺', label: '건강신호 마스터' },
+      { to: '/content/illnesses', icon: '🔮', label: '예측질환 마스터' },
     ],
   },
   {

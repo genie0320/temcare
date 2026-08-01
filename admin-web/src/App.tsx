@@ -8,6 +8,8 @@ import { HealthSignDetailPage } from './pages/HealthSignDetailPage'
 import { HealthSignListPage } from './pages/HealthSignListPage'
 import { HerbDetailPage } from './pages/HerbDetailPage'
 import { HerbListPage } from './pages/HerbListPage'
+import { IllnessDetailPage } from './pages/IllnessDetailPage'
+import { IllnessListPage } from './pages/IllnessListPage'
 import { LoginPage } from './pages/LoginPage'
 import { NutrientDetailPage } from './pages/NutrientDetailPage'
 import { NutrientListPage } from './pages/NutrientListPage'
@@ -59,6 +61,8 @@ function App() {
           <Route path="/content/points/:id" element={<PointDetailPage />} />
           <Route path="/content/health-signs" element={<HealthSignListPage />} />
           <Route path="/content/health-signs/:id" element={<HealthSignDetailPage />} />
+          <Route path="/content/illnesses" element={<IllnessListPage />} />
+          <Route path="/content/illnesses/:id" element={<IllnessDetailPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

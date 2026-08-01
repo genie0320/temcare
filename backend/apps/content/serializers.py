@@ -349,3 +349,44 @@ class HealthSignDetailSerializer(serializers.ModelSerializer):
 
     def get_weakness_ids(self, obj):
         return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+
+class IllnessListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_007b). 건강신호와 동일한 §B 최단순 구조."""
+
+    weakness_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Illness
+        fields = ["id", "name", "description", "status", "weakness_names", "updated_at"]
+
+    def get_weakness_names(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("name", flat=True))
+
+
+class IllnessDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_007b). 약점은 모델 필드가 아니므로 읽기는 SerializerMethodField,
+    쓰기는 뷰(IllnessViewSet._sync_weaknesses)에서 request.data를 직접 받아 처리한다.
+    category는 스키마엔 있지만 UI 미노출 — 프로토타입처럼 기존 값을 보존만 한다.
+    """
+
+    weakness_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Illness
+        fields = [
+            "id",
+            "name",
+            "description",
+            "image",
+            "status",
+            "sort",
+            "weakness_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def get_weakness_ids(self, obj):
+        return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
