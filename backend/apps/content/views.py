@@ -28,6 +28,7 @@ from .models import (
     NutrientCardWeakness,
     Point,
     PointWeakness,
+    Product,
     TemType,
     TemTypeCuration,
     TemTypeIllness,
@@ -48,6 +49,8 @@ from .serializers import (
     NutrientListSerializer,
     PointDetailSerializer,
     PointListSerializer,
+    ProductDetailSerializer,
+    ProductListSerializer,
     TemTypeDetailSerializer,
     TemTypeListSerializer,
     WeaknessDetailSerializer,
@@ -62,6 +65,7 @@ _HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
 _ACU_ID_RE = re.compile(r"^ACU-(\d+)$")
 _SIG_ID_RE = re.compile(r"^SIG-(\d+)$")
 _ILL_ID_RE = re.compile(r"^ILL-(\d+)$")
+_PRD_ID_RE = re.compile(r"^PRD-(\d+)$")
 
 
 def _next_weakness_id() -> str:
@@ -134,6 +138,15 @@ def _next_illness_id() -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"ILL-{max_n + 1:02d}"
+
+
+def _next_product_id() -> str:
+    max_n = 0
+    for pid in Product.objects.values_list("id", flat=True):
+        m = _PRD_ID_RE.match(pid)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"PRD-{max_n + 1:02d}"
 
 
 class WeaknessViewSet(ModelViewSet):
@@ -704,6 +717,39 @@ class IllnessViewSet(ModelViewSet):
             IllnessWeakness.objects.get(illness=instance, weakness_id=wid).delete()
         for wid in target - current:
             IllnessWeakness.objects.create(illness=instance, weakness_id=wid)
+
+
+class ProductViewSet(ModelViewSet):
+    """제품 마스터(adm_027). 약점 태그가 없는 가장 단순한 구조 — 관리법 참고정보에서 연결된다."""
+
+    permission_classes = [AdminResourcePermission]
+    resource = "adm_027"
+    queryset = Product.objects.all()
+
+    def get_serializer_class(self):
+        return ProductListSerializer if self.action == "list" else ProductDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) | Q(id__icontains=search) | Q(description__icontains=search) | Q(url__icontains=search)
+            )
+        status_param = self.request.query_params.get("status")
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs
+
+    def _actor_label(self) -> str:
+        user = self.request.user
+        return user.get_full_name() or user.username
+
+    def perform_create(self, serializer):
+        serializer.save(id=_next_product_id(), updated_by=self._actor_label())
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self._actor_label())
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024

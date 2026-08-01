@@ -15,6 +15,8 @@ import { NutrientDetailPage } from './pages/NutrientDetailPage'
 import { NutrientListPage } from './pages/NutrientListPage'
 import { PointDetailPage } from './pages/PointDetailPage'
 import { PointListPage } from './pages/PointListPage'
+import { ProductDetailPage } from './pages/ProductDetailPage'
+import { ProductListPage } from './pages/ProductListPage'
 import { TemTypeDetailPage } from './pages/TemTypeDetailPage'
 import { TemTypeListPage } from './pages/TemTypeListPage'
 import { WeaknessDetailPage } from './pages/WeaknessDetailPage'
@@ -63,6 +65,8 @@ function App() {
           <Route path="/content/health-signs/:id" element={<HealthSignDetailPage />} />
           <Route path="/content/illnesses" element={<IllnessListPage />} />
           <Route path="/content/illnesses/:id" element={<IllnessDetailPage />} />
+          <Route path="/content/products" element={<ProductListPage />} />
+          <Route path="/content/products/:id" element={<ProductDetailPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

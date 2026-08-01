@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Food, HealthSign, Herb, Illness, Nutrient, Point, TemType, Weakness
+from .models import Food, HealthSign, Herb, Illness, Nutrient, Point, Product, TemType, Weakness
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -349,6 +349,34 @@ class HealthSignDetailSerializer(serializers.ModelSerializer):
 
     def get_weakness_ids(self, obj):
         return list(obj.weaknesses.order_by("sort").values_list("id", flat=True))
+
+
+class ProductListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_027). 약점 태그가 없는 가장 단순한 구조 — 관리법에서 참고정보로 연결된다."""
+
+    class Meta:
+        model = Product
+        fields = ["id", "name", "url", "status", "updated_at"]
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_027)."""
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "name",
+            "description",
+            "image",
+            "url",
+            "status",
+            "sort",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
 
 
 class IllnessListSerializer(serializers.ModelSerializer):

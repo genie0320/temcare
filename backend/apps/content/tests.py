@@ -3,7 +3,19 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.audit.models import AuditLog
-from apps.content.models import Food, HealthSign, Herb, HerbCard, Illness, Nutrient, NutrientCard, Point, TemType, Weakness
+from apps.content.models import (
+    Food,
+    HealthSign,
+    Herb,
+    HerbCard,
+    Illness,
+    Nutrient,
+    NutrientCard,
+    Point,
+    Product,
+    TemType,
+    Weakness,
+)
 
 
 def _make_admin(role_id, resources_actions):
@@ -776,4 +788,69 @@ def test_illness_write_denied_without_adm_007b_permission():
     client.force_authenticate(user=user)
 
     resp = client.post("/api/content/illnesses/", {"name": "소화기질환"}, format="json")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_product_create():
+    user = _make_admin("editor", [("adm_027", "read"), ("adm_027", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post(
+        "/api/content/products/",
+        {"name": "생강 온열팩", "description": "상품 설명", "url": "https://example.com/item"},
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "PRD-01"  # 서버 채번
+    assert body["url"] == "https://example.com/item"
+
+
+@pytest.mark.django_db
+def test_product_update():
+    user = _make_admin("editor", [("adm_027", "read"), ("adm_027", "write")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Product.objects.create(id="PRD-01", name="생강 온열팩", url="https://old.example.com")
+
+    resp = client.patch("/api/content/products/PRD-01/", {"url": "https://new.example.com"}, format="json")
+    assert resp.status_code == 200
+    assert resp.json()["url"] == "https://new.example.com"
+
+
+@pytest.mark.django_db
+def test_product_list_shows_url():
+    user = _make_admin("editor", [("adm_027", "read")])
+    Product.objects.create(id="PRD-01", name="생강 온열팩", url="https://example.com/item")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/content/products/")
+    assert resp.status_code == 200
+    assert resp.json()[0]["url"] == "https://example.com/item"
+
+
+@pytest.mark.django_db
+def test_product_delete_is_audited():
+    user = _make_admin("editor", [("adm_027", "read"), ("adm_027", "write"), ("adm_027", "delete")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    Product.objects.create(id="PRD-01", name="생강 온열팩")
+    resp = client.delete("/api/content/products/PRD-01/")
+    assert resp.status_code == 204
+    assert not Product.objects.filter(id="PRD-01").exists()
+    assert AuditLog.objects.filter(target_table="product", target_id="PRD-01", action="delete").exists()
+
+
+@pytest.mark.django_db
+def test_product_write_denied_without_adm_027_permission():
+    user = _make_admin("cs", [("adm_003", "read")])
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.post("/api/content/products/", {"name": "생강 온열팩"}, format="json")
     assert resp.status_code == 403
