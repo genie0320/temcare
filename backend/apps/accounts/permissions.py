@@ -1,6 +1,8 @@
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 
+from apps.audit import service as audit
+
 from .models import AdminPermission
 
 
@@ -22,9 +24,9 @@ class AdminResourcePermission(BasePermission):
             permission_classes = [AdminResourcePermission]
             resource = "adm_003"
 
-    ★ TODO(M1): "권한 없는 접근이 감사로그에 남는가" 체크리스트(§2)는 아직 미구현.
-    AuditLog의 action 종류(create/update/delete/publish/export)에 '거부' 개념이
-    없어서 관리자 API가 실제로 붙는 M1에서 로그 형태를 같이 정하고 채운다.
+    권한 없는 접근은 audit_log에 `action='deny'`로 남는다(§2 체크리스트). 단 익명 요청은
+    남기지 않는다 — 로그인한 운영자가 자기 역할 밖을 시도한 경우만 의미 있는 보안 사건이고,
+    익명까지 남기면 스캐너 트래픽으로 장부가 덮인다.
     """
 
     ACTION_MAP = {
@@ -38,6 +40,10 @@ class AdminResourcePermission(BasePermission):
 
     def has_permission(self, request, view):
         resource = getattr(view, "resource", None)
+        if resource is None and hasattr(view, "get_resource"):
+            # 업로드처럼 대상 화면이 요청 본문에 실려오는 경우. 권한 판정은 여전히
+            # 라우트 진입 지점(이 클래스)에서 한 번에 한다 — §2.
+            resource = view.get_resource(request)
         if resource is None:
             raise ImproperlyConfigured(
                 f"{view.__class__.__name__}는 AdminResourcePermission을 쓰려면 resource를 선언해야 한다."
@@ -64,9 +70,13 @@ class AdminResourcePermission(BasePermission):
         if not user.is_authenticated or not hasattr(user, "admin_profile"):
             return False
 
-        return AdminPermission.objects.filter(
+        allowed = AdminPermission.objects.filter(
             role_id=user.admin_profile.role_id,
             resource=resource,
             action=required_action,
             allowed=True,
         ).exists()
+
+        if not allowed:
+            audit.record_denied(resource, required_action, path=request.path)
+        return allowed

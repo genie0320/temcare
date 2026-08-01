@@ -13,6 +13,10 @@ class AuditLog(models.Model):
         ("delete", "delete"),
         ("publish", "publish"),
         ("export", "export"),
+        # 권한 없는 접근 시도. docs/02_architecture_constraints.md §2 체크리스트
+        # "권한 없는 접근이 감사로그에 남는가". 데이터 변경은 없었지만 보안 사건이므로
+        # 같은 장부에 남긴다 — 내부자의 권한 밖 시도를 사후에 추적할 수 있어야 한다.
+        ("deny", "deny"),
     ]
 
     actor_id = models.CharField(max_length=64, blank=True, null=True)

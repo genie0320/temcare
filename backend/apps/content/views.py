@@ -1,18 +1,21 @@
+"""콘텐츠 마스터 CRUD API.
+
+공통 뼈대(중복 제거·약점 필수 검증·관계 감사로그)는 base.MasterViewSet에 있다.
+여기 각 ViewSet은 **무엇이 다른지만** 선언한다.
+"""
+
 import os
-import re
 import uuid
 
 from django.core.files.storage import default_storage
-from django.db.models import Q
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
 
-from apps.accounts.models import AdminPermission
 from apps.accounts.permissions import AdminResourcePermission
+from apps.audit import service as audit
 
+from .base import MasterViewSet, next_id, sync_relation
 from .models import (
     Article,
     ArticleFood,
@@ -64,225 +67,94 @@ from .serializers import (
     WeaknessListSerializer,
 )
 
-_WEAK_ID_RE = re.compile(r"^WEAK-(\d+)$")
-_TEM_ID_RE = re.compile(r"^TEM(\d+)$")
-_NUT_ID_RE = re.compile(r"^NUT-(\d+)$")
-_FOOD_ID_RE = re.compile(r"^FOOD-(\d+)$")
-_HRB_ID_RE = re.compile(r"^HRB-(\d+)$")
-_ACU_ID_RE = re.compile(r"^ACU-(\d+)$")
-_SIG_ID_RE = re.compile(r"^SIG-(\d+)$")
-_ILL_ID_RE = re.compile(r"^ILL-(\d+)$")
-_PRD_ID_RE = re.compile(r"^PRD-(\d+)$")
-_ART_ID_RE = re.compile(r"^ART-(\d+)$")
 
+class WeaknessViewSet(MasterViewSet):
+    """약점 / IDEA 마스터(adm_003). 약점 태그의 '정의' 자체라 약점 필수 규칙은 해당 없다."""
 
-def _next_weakness_id() -> str:
-    max_n = 0
-    for wid in Weakness.objects.values_list("id", flat=True):
-        m = _WEAK_ID_RE.match(wid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"WEAK-{max_n + 1:02d}"
-
-
-def _next_tem_type_id() -> str:
-    max_n = 0
-    for tid in TemType.objects.values_list("id", flat=True):
-        m = _TEM_ID_RE.match(tid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"TEM{max_n + 1:02d}"
-
-
-def _next_nutrient_id() -> str:
-    max_n = 0
-    for nid in Nutrient.objects.values_list("id", flat=True):
-        m = _NUT_ID_RE.match(nid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"NUT-{max_n + 1:02d}"
-
-
-def _next_herb_id() -> str:
-    max_n = 0
-    for hid in Herb.objects.values_list("id", flat=True):
-        m = _HRB_ID_RE.match(hid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"HRB-{max_n + 1:02d}"
-
-
-def _next_food_id() -> str:
-    max_n = 0
-    for fid in Food.objects.values_list("id", flat=True):
-        m = _FOOD_ID_RE.match(fid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"FOOD-{max_n + 1:02d}"
-
-
-def _next_point_id() -> str:
-    max_n = 0
-    for pid in Point.objects.values_list("id", flat=True):
-        m = _ACU_ID_RE.match(pid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"ACU-{max_n + 1:02d}"
-
-
-def _next_health_sign_id() -> str:
-    max_n = 0
-    for sid in HealthSign.objects.values_list("id", flat=True):
-        m = _SIG_ID_RE.match(sid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"SIG-{max_n + 1:02d}"
-
-
-def _next_illness_id() -> str:
-    max_n = 0
-    for iid in Illness.objects.values_list("id", flat=True):
-        m = _ILL_ID_RE.match(iid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"ILL-{max_n + 1:02d}"
-
-
-def _next_product_id() -> str:
-    max_n = 0
-    for pid in Product.objects.values_list("id", flat=True):
-        m = _PRD_ID_RE.match(pid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"PRD-{max_n + 1:02d}"
-
-
-def _next_article_id() -> str:
-    max_n = 0
-    for aid in Article.objects.values_list("id", flat=True):
-        m = _ART_ID_RE.match(aid)
-        if m:
-            max_n = max(max_n, int(m.group(1)))
-    return f"ART-{max_n + 1:02d}"
-
-
-class WeaknessViewSet(ModelViewSet):
-    """약점 / IDEA 마스터(adm_003). docs/05_screen_conventions.md의 목록·상세 규격을 따른다."""
-
-    permission_classes = [AdminResourcePermission]
     resource = "adm_003"
     queryset = Weakness.objects.all()
-
-    def get_serializer_class(self):
-        return WeaknessListSerializer if self.action == "list" else WeaknessDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(name__icontains=search) | Q(id__icontains=search))
-        wtype = self.request.query_params.get("wtype")
-        if wtype:
-            qs = qs.filter(wtype=wtype)
-        return qs
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        serializer.save(id=_next_weakness_id(), updated_by=self._actor_label())
-
-    def perform_update(self, serializer):
-        serializer.save(updated_by=self._actor_label())
+    id_prefix = "WEAK-"
+    list_serializer_class = WeaknessListSerializer
+    detail_serializer_class = WeaknessDetailSerializer
+    search_fields = ["name", "id"]
+    filter_fields = {"wtype": "wtype"}
+    weakness_required = False
 
 
-class TemTypeViewSet(ModelViewSet):
-    """64유형 마스터(adm_002). docs/02_architecture_constraints.md §7 — 영양·약재·식품군은
-    여기서 직접 큐레이션하고, 건강신호·관리법은 약점 태그로 자동 노출되므로 여기서 다루지 않는다.
-    """
+class TemTypeViewSet(MasterViewSet):
+    """64유형 마스터(adm_002). 약점 + 예측질환 발병율 + 큐레이션 3종을 자식으로 갖는다."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_002"
     queryset = TemType.objects.all()
+    id_prefix = "TEM"
+    list_serializer_class = TemTypeListSerializer
+    detail_serializer_class = TemTypeDetailSerializer
+    search_fields = ["name", "id", "nickname"]
+    filter_fields = {"weakness": "weaknesses__id"}
+    weakness_through = TemTypeWeakness
+    weakness_parent_field = "tem_type"
 
-    def get_serializer_class(self):
-        return TemTypeListSerializer if self.action == "list" else TemTypeDetailSerializer
+    def _body_kwargs(self, default_min=2, default_max=2) -> dict:
+        body_min = int(self.request.data.get("body_min", default_min))
+        body_max = int(self.request.data.get("body_max", default_max))
+        return {
+            "body_min": body_min,
+            "body_max": body_max,
+            "body_value": round((body_min + body_max) / 2 * 25),
+        }
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(name__icontains=search) | Q(nickname__icontains=search) | Q(id__icontains=search))
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
+    def get_create_kwargs(self, serializer) -> dict:
+        return {**super().get_create_kwargs(serializer), **self._body_kwargs()}
 
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
+    def get_update_kwargs(self, serializer) -> dict:
+        return {
+            **super().get_update_kwargs(serializer),
+            **self._body_kwargs(serializer.instance.body_min, serializer.instance.body_max),
+        }
 
-    def perform_create(self, serializer):
-        body_min = int(self.request.data.get("body_min", 2))
-        body_max = int(self.request.data.get("body_max", 2))
-        instance = serializer.save(
-            id=_next_tem_type_id(),
-            updated_by=self._actor_label(),
-            body_min=body_min,
-            body_max=body_max,
-            body_value=round((body_min + body_max) / 2 * 25),
-        )
-        self._sync_children(instance)
+    def sync_children(self, instance):
+        """예측질환 발병율·큐레이션을 요청 본문으로 통째로 교체한다.
 
-    def perform_update(self, serializer):
-        body_min = int(self.request.data.get("body_min", serializer.instance.body_min))
-        body_max = int(self.request.data.get("body_max", serializer.instance.body_max))
-        instance = serializer.save(
-            updated_by=self._actor_label(),
-            body_min=body_min,
-            body_max=body_max,
-            body_value=round((body_min + body_max) / 2 * 25),
-        )
-        self._sync_children(instance)
-
-    def _sync_children(self, instance):
-        """약점·예측질환·큐레이션(영양/약재/식품)을 요청 본문으로 통째로 교체한다.
-
-        인스턴스 단위 delete()/create()만 쓴다(QuerySet.delete()/bulk_* 금지 —
-        docs/08_tech_stack.md §4). 이 자식 테이블들은 AuditedModel이 아니라 감사로그
-        의무는 없지만, 실제 감사 대상인 TemType.save()가 방금 시그널을 이미 남겼다.
+        ★ 발병율은 합계 100% 검증을 하지 않는다 — 질환별 독립 발병율이다
+          (docs/05_screen_conventions.md §G, docs/06_decisions.md #4).
         """
         data = self.request.data
 
-        if "weakness_ids" in data:
-            target = {str(w) for w in (data.get("weakness_ids") or [])}
-            current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-            for wid in current - target:
-                TemTypeWeakness.objects.get(tem_type=instance, weakness_id=wid).delete()
-            for wid in target - current:
-                TemTypeWeakness.objects.create(tem_type=instance, weakness_id=wid)
-
         if "illnesses" in data:
+            before = [
+                {"illness_id": link.illness_id, "pct": link.pct} for link in instance.illness_links.order_by("sort")
+            ]
             for link in list(instance.illness_links.all()):
                 link.delete()
+            after = []
             for i, item in enumerate(data.get("illnesses") or []):
                 illness_id = item.get("illness_id")
                 if not illness_id:
                     continue
-                TemTypeIllness.objects.create(
-                    tem_type=instance, illness_id=illness_id, pct=int(item.get("pct") or 0), sort=i
+                pct = int(item.get("pct") or 0)
+                TemTypeIllness.objects.create(tem_type=instance, illness_id=illness_id, pct=pct, sort=i)
+                after.append({"illness_id": illness_id, "pct": pct})
+            if before != after:
+                # TemTypeIllness는 AuditedModel이 아니다(순수 값 테이블). 발병율은 원장이
+                # 손으로 넣는 실데이터라 변경 이력이 반드시 필요하다 — 명시적으로 남긴다.
+                audit.record(
+                    action="update",
+                    target_table=instance._meta.db_table,
+                    target_id=instance.pk,
+                    before={"illnesses": before},
+                    after={"illnesses": after},
                 )
 
         curation_keys = {"nutrient": "nutrient_card_ids", "herb": "herb_card_ids", "food": "food_ids"}
         for kind, key in curation_keys.items():
             if key not in data:
                 continue
+            before = list(
+                instance.curations.filter(kind=kind).order_by("sort").values_list("ref_id", flat=True)
+            )
             for cur in list(instance.curations.filter(kind=kind)):
                 cur.delete()
+            after = []
             for i, ref_id in enumerate(data.get(key) or []):
                 polarity = ""
                 if kind == "food":
@@ -290,6 +162,15 @@ class TemTypeViewSet(ModelViewSet):
                     polarity = food.polarity if food else ""
                 TemTypeCuration.objects.create(
                     tem_type=instance, kind=kind, ref_id=str(ref_id), polarity=polarity, sort=i
+                )
+                after.append(str(ref_id))
+            if before != after:
+                audit.record(
+                    action="update",
+                    target_table=instance._meta.db_table,
+                    target_id=instance.pk,
+                    before={key: before},
+                    after={key: after},
                 )
 
 
@@ -356,70 +237,95 @@ class IllnessOptionsView(APIView):
         return Response(IllnessOptionSerializer(illnesses, many=True).data)
 
 
-class NutrientViewSet(ModelViewSet):
-    """영양소 마스터(adm_022). docs/05_screen_conventions.md §C 반복 카드 리스트 —
-    마스터 1건(영양소) + 하위 카드 N건(관점별), 카드마다 약점 n:m.
+class _CardMasterViewSet(MasterViewSet):
+    """영양소·약재처럼 '마스터 1건 + 하위 카드 N건' 구조(§C 반복 카드 리스트).
+
+    약점은 마스터가 아니라 **카드**가 문다. 그래서 약점 필수 검증도 카드 단위로 한다.
     """
 
-    permission_classes = [AdminResourcePermission]
-    resource = "adm_022"
-    queryset = Nutrient.objects.all()
+    card_model = None
+    card_parent_field: str | None = None
+    card_through = None
+    card_text_field: str | None = None  # 관점(perspective) / 효능기전(mechanism)
+    weakness_required = False  # 마스터 레벨 검사는 끄고 카드 레벨로 대체
 
-    def get_serializer_class(self):
-        return NutrientListSerializer if self.action == "list" else NutrientDetailSerializer
+    def _incoming_cards(self):
+        return self.request.data.get("cards") or []
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search) | Q(id__icontains=search) | Q(cards__perspective__icontains=search)
+    @staticmethod
+    def _is_blank(item, text_field) -> bool:
+        return not (
+            (item.get(text_field) or "").strip()
+            or (item.get("description") or "").strip()
+            or (item.get("weakness_ids") or [])
+        )
+
+    def _validate_weakness_tags(self, *, creating: bool) -> None:
+        """카드마다 약점 최소 1개. 완전히 빈 카드는 저장 전에 버려지므로 검사 대상이 아니다."""
+        from rest_framework import serializers as drf_serializers
+
+        if "cards" not in self.request.data:
+            if creating:
+                raise drf_serializers.ValidationError(
+                    {"cards": ["카드가 최소 1개 필요하다. 카드에 약점 태그가 있어야 고객 화면에 노출된다."]}
+                )
+            return
+
+        cards = [c for c in self._incoming_cards() if not self._is_blank(c, self.card_text_field)]
+        if creating and not cards:
+            raise drf_serializers.ValidationError(
+                {"cards": ["카드가 최소 1개 필요하다. 카드에 약점 태그가 있어야 고객 화면에 노출된다."]}
             )
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(cards__weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
+        for i, item in enumerate(cards):
+            if not (item.get("weakness_ids") or []):
+                raise drf_serializers.ValidationError(
+                    {"cards": [f"{i + 1}번째 카드에 연결 약점이 없다. 약점 태그가 없으면 고객 화면에 노출되지 않는다."]}
+                )
 
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
+    def sync_children(self, instance):
+        """카드를 요청 본문으로 통째로 교체한다.
 
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_nutrient_id(), updated_by=self._actor_label())
-        self._sync_cards(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_cards(instance)
-
-    def _sync_cards(self, instance):
-        """관점 카드를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4). NutrientCard는
-        AuditedModel이라 이 delete()·create() 각각이 감사로그에 남는다.
+        인스턴스 단위 delete()/create()만 쓴다(QuerySet.delete()/bulk_* 금지 —
+        docs/08_tech_stack.md §4). 카드 모델은 AuditedModel이라 각 delete()·create()가
+        그대로 감사로그에 남는다.
         """
-        data = self.request.data
-        if "cards" not in data:
+        if "cards" not in self.request.data:
             return
         for card in list(instance.cards.all()):
             card.delete()
-        for i, item in enumerate(data.get("cards") or []):
-            perspective = (item.get("perspective") or "").strip()
-            description = (item.get("description") or "").strip()
-            weakness_ids = item.get("weakness_ids") or []
-            if not perspective and not description and not weakness_ids:
+        for i, item in enumerate(self._incoming_cards()):
+            if self._is_blank(item, self.card_text_field):
                 continue
-            card = NutrientCard.objects.create(
-                nutrient=instance, perspective=perspective, description=description, sort=i
+            card = self.card_model.objects.create(
+                **{
+                    self.card_parent_field: instance,
+                    self.card_text_field: (item.get(self.card_text_field) or "").strip(),
+                    "description": (item.get("description") or "").strip(),
+                    "sort": i,
+                }
             )
-            for wid in weakness_ids:
-                NutrientCardWeakness.objects.create(card=card, weakness_id=wid)
+            for wid in item.get("weakness_ids") or []:
+                self.card_through.objects.create(card=card, weakness_id=wid)
+
+
+class NutrientViewSet(_CardMasterViewSet):
+    """영양소 마스터(adm_022). 카드 = (영양소 × 관점)."""
+
+    resource = "adm_022"
+    queryset = Nutrient.objects.all()
+    id_prefix = "NUT-"
+    list_serializer_class = NutrientListSerializer
+    detail_serializer_class = NutrientDetailSerializer
+    search_fields = ["name", "id", "cards__perspective"]
+    filter_fields = {"weakness": "cards__weaknesses__id"}
+    card_model = NutrientCard
+    card_parent_field = "nutrient"
+    card_through = NutrientCardWeakness
+    card_text_field = "perspective"
 
 
 class NutrientPerspectiveOptionsView(APIView):
-    """관점 카드 입력란의 자동완성 후보(spec adm_022 3행: 자유텍스트+기존값 자동완성)."""
+    """관점 입력란의 자동완성 후보(spec adm_022 3행: 자유텍스트+기존값 자동완성)."""
 
     permission_classes = [AdminResourcePermission]
     resource = "adm_022"
@@ -430,72 +336,24 @@ class NutrientPerspectiveOptionsView(APIView):
         return Response(sorted(set(values)))
 
 
-class HerbViewSet(ModelViewSet):
-    """약재(인생처방) 마스터(adm_023). 영양소(adm_022)와 동일 구조 — 마스터 1건 + 하위
-    카드 N건(효능기전별), 카드마다 약점 n:m. 한자/생약명 필드만 추가로 있다.
-    """
+class HerbViewSet(_CardMasterViewSet):
+    """약재(인생처방) 마스터(adm_023). 카드 = (약재 × 효능기전)."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_023"
     queryset = Herb.objects.all()
-
-    def get_serializer_class(self):
-        return HerbListSerializer if self.action == "list" else HerbDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search)
-                | Q(id__icontains=search)
-                | Q(hanja__icontains=search)
-                | Q(cards__mechanism__icontains=search)
-            )
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(cards__weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_herb_id(), updated_by=self._actor_label())
-        self._sync_cards(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_cards(instance)
-
-    def _sync_cards(self, instance):
-        """효능 카드를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "cards" not in data:
-            return
-        for card in list(instance.cards.all()):
-            card.delete()
-        for i, item in enumerate(data.get("cards") or []):
-            mechanism = (item.get("mechanism") or "").strip()
-            description = (item.get("description") or "").strip()
-            weakness_ids = item.get("weakness_ids") or []
-            if not mechanism and not description and not weakness_ids:
-                continue
-            card = HerbCard.objects.create(
-                herb=instance, mechanism=mechanism, description=description, sort=i
-            )
-            for wid in weakness_ids:
-                HerbCardWeakness.objects.create(card=card, weakness_id=wid)
+    id_prefix = "HRB-"
+    list_serializer_class = HerbListSerializer
+    detail_serializer_class = HerbDetailSerializer
+    search_fields = ["name", "id", "hanja", "cards__mechanism"]
+    filter_fields = {"weakness": "cards__weaknesses__id"}
+    card_model = HerbCard
+    card_parent_field = "herb"
+    card_through = HerbCardWeakness
+    card_text_field = "mechanism"
 
 
 class HerbMechanismOptionsView(APIView):
-    """효능 카드 입력란의 자동완성 후보(spec adm_023 3행: 자유텍스트+자동완성)."""
+    """효능기전 입력란의 자동완성 후보(spec adm_023 3행: 자유텍스트+자동완성)."""
 
     permission_classes = [AdminResourcePermission]
     resource = "adm_023"
@@ -506,68 +364,22 @@ class HerbMechanismOptionsView(APIView):
         return Response(sorted(set(values)))
 
 
-class FoodViewSet(ModelViewSet):
-    """식품군 마스터(adm_025). 영양소·약재와 달리 카드가 아니라 **단일 레코드 + 약점
-    체크박스** 구조다(64유형과 같은 §B 패턴).
-    """
+class FoodViewSet(MasterViewSet):
+    """식품군 마스터(adm_025). 단일 레코드 + 약점 체크박스(§B)."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_025"
     queryset = Food.objects.all()
-
-    def get_serializer_class(self):
-        return FoodListSerializer if self.action == "list" else FoodDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(foods__icontains=search)
-                | Q(id__icontains=search)
-                | Q(component__icontains=search)
-                | Q(description__icontains=search)
-            )
-        polarity = self.request.query_params.get("polarity")
-        if polarity:
-            qs = qs.filter(polarity=polarity)
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_food_id(), updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def _sync_weaknesses(self, instance):
-        """약점 태그를 요청 본문으로 통째로 교체한다(TemTypeViewSet._sync_children과 동일 패턴).
-        인스턴스 단위 delete()/create()만 쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "weakness_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("weakness_ids") or [])}
-        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-        for wid in current - target:
-            FoodWeakness.objects.get(food=instance, weakness_id=wid).delete()
-        for wid in target - current:
-            FoodWeakness.objects.create(food=instance, weakness_id=wid)
+    id_prefix = "FOOD-"
+    list_serializer_class = FoodListSerializer
+    detail_serializer_class = FoodDetailSerializer
+    search_fields = ["foods", "id", "component", "description"]
+    filter_fields = {"polarity": "polarity", "weakness": "weaknesses__id"}
+    weakness_through = FoodWeakness
+    weakness_parent_field = "food"
 
 
 class FoodComponentOptionsView(APIView):
-    """핵심성분 입력란의 자동완성 후보(spec adm_025 2행: 자유텍스트+자동완성)."""
+    """핵심성분 입력란의 자동완성 후보(spec adm_025 2행)."""
 
     permission_classes = [AdminResourcePermission]
     resource = "adm_025"
@@ -578,327 +390,146 @@ class FoodComponentOptionsView(APIView):
         return Response(sorted(set(values)))
 
 
-class PointViewSet(ModelViewSet):
-    """혈자리 마스터(adm_026). 식품군(adm_025)과 같은 §B 구조 — 단일 레코드 + 약점
-    체크박스. `tip`은 spec [v2]에서 UI가 빠졌으므로 여기서 다루지 않는다(컬럼은 보존).
-    """
+class PointViewSet(MasterViewSet):
+    """혈자리 마스터(adm_026). `tip`은 spec [v2]에서 UI가 빠졌다(컬럼은 보존)."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_026"
     queryset = Point.objects.all()
-
-    def get_serializer_class(self):
-        return PointListSerializer if self.action == "list" else PointDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search)
-                | Q(id__icontains=search)
-                | Q(hanja__icontains=search)
-                | Q(description__icontains=search)
-                | Q(location__icontains=search)
-            )
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_point_id(), updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def _sync_weaknesses(self, instance):
-        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "weakness_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("weakness_ids") or [])}
-        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-        for wid in current - target:
-            PointWeakness.objects.get(point=instance, weakness_id=wid).delete()
-        for wid in target - current:
-            PointWeakness.objects.create(point=instance, weakness_id=wid)
+    id_prefix = "ACU-"
+    list_serializer_class = PointListSerializer
+    detail_serializer_class = PointDetailSerializer
+    search_fields = ["name", "id", "hanja", "description", "location"]
+    filter_fields = {"weakness": "weaknesses__id"}
+    weakness_through = PointWeakness
+    weakness_parent_field = "point"
 
 
-class HealthSignViewSet(ModelViewSet):
-    """건강신호 마스터(adm_007a). §B 중 가장 단순한 구조 — 단일 레코드 + 약점 체크박스뿐."""
+class HealthSignViewSet(MasterViewSet):
+    """건강신호 마스터(adm_007a)."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_007a"
     queryset = HealthSign.objects.all()
-
-    def get_serializer_class(self):
-        return HealthSignListSerializer if self.action == "list" else HealthSignDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(name__icontains=search) | Q(id__icontains=search) | Q(note__icontains=search))
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_health_sign_id(), updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def _sync_weaknesses(self, instance):
-        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "weakness_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("weakness_ids") or [])}
-        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-        for wid in current - target:
-            HealthSignWeakness.objects.get(sign=instance, weakness_id=wid).delete()
-        for wid in target - current:
-            HealthSignWeakness.objects.create(sign=instance, weakness_id=wid)
+    id_prefix = "SIG-"
+    list_serializer_class = HealthSignListSerializer
+    detail_serializer_class = HealthSignDetailSerializer
+    search_fields = ["name", "id", "note"]
+    filter_fields = {"weakness": "weaknesses__id"}
+    weakness_through = HealthSignWeakness
+    weakness_parent_field = "sign"
 
 
-class IllnessViewSet(ModelViewSet):
-    """예측질환 마스터(adm_007b). 건강신호와 동일한 §B 구조 — category는 스키마 보존, UI 미노출."""
+class IllnessViewSet(MasterViewSet):
+    """예측질환 마스터(adm_007b). category는 스키마 보존, UI 미노출."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_007b"
     queryset = Illness.objects.all()
-
-    def get_serializer_class(self):
-        return IllnessListSerializer if self.action == "list" else IllnessDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(name__icontains=search) | Q(id__icontains=search) | Q(description__icontains=search))
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_illness_id(), updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_weaknesses(instance)
-
-    def _sync_weaknesses(self, instance):
-        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "weakness_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("weakness_ids") or [])}
-        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-        for wid in current - target:
-            IllnessWeakness.objects.get(illness=instance, weakness_id=wid).delete()
-        for wid in target - current:
-            IllnessWeakness.objects.create(illness=instance, weakness_id=wid)
+    id_prefix = "ILL-"
+    list_serializer_class = IllnessListSerializer
+    detail_serializer_class = IllnessDetailSerializer
+    search_fields = ["name", "id", "description"]
+    filter_fields = {"weakness": "weaknesses__id"}
+    weakness_through = IllnessWeakness
+    weakness_parent_field = "illness"
 
 
-class ProductViewSet(ModelViewSet):
-    """제품 마스터(adm_027). 약점 태그가 없는 가장 단순한 구조 — 관리법 참고정보에서 연결된다."""
+class ProductViewSet(MasterViewSet):
+    """제품 마스터(adm_027). 약점 태그가 없다 — 관리법(요법)의 참고정보로만 노출된다."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_027"
     queryset = Product.objects.all()
-
-    def get_serializer_class(self):
-        return ProductListSerializer if self.action == "list" else ProductDetailSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search) | Q(id__icontains=search) | Q(description__icontains=search) | Q(url__icontains=search)
-            )
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        serializer.save(id=_next_product_id(), updated_by=self._actor_label())
-
-    def perform_update(self, serializer):
-        serializer.save(updated_by=self._actor_label())
+    id_prefix = "PRD-"
+    list_serializer_class = ProductListSerializer
+    detail_serializer_class = ProductDetailSerializer
+    search_fields = ["name", "id", "description", "url"]
+    weakness_required = False
 
 
-class ArticleViewSet(ModelViewSet):
-    """요법관리 마스터(adm_024). 유형(kind)·본문에 더해 약점·식품군·혈자리·제품 4개 연결을 갖는다."""
+class ArticleViewSet(MasterViewSet):
+    """요법관리 마스터(adm_024). 약점 + 참고정보 3종(식품군·혈자리·제품) 연결."""
 
-    permission_classes = [AdminResourcePermission]
     resource = "adm_024"
     queryset = Article.objects.all()
+    id_prefix = "ART-"
+    list_serializer_class = ArticleListSerializer
+    detail_serializer_class = ArticleDetailSerializer
+    search_fields = ["title", "id", "body"]
+    filter_fields = {"kind": "kind", "weakness": "weaknesses__id"}
+    weakness_through = ArticleWeakness
+    weakness_parent_field = "article"
 
-    def get_serializer_class(self):
-        return ArticleListSerializer if self.action == "list" else ArticleDetailSerializer
+    # 참고정보 연결: 요청 키 → (through 모델, 상대 필드명)
+    REFERENCE_LINKS = {
+        "food_ids": (ArticleFood, "food"),
+        "point_ids": (ArticlePoint, "point"),
+        "product_ids": (ArticleProduct, "product"),
+    }
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(title__icontains=search) | Q(id__icontains=search) | Q(body__icontains=search))
-        kind = self.request.query_params.get("kind")
-        if kind:
-            qs = qs.filter(kind=kind)
-        weakness = self.request.query_params.get("weakness")
-        if weakness:
-            qs = qs.filter(weaknesses__id=weakness)
-        status_param = self.request.query_params.get("status")
-        if status_param:
-            qs = qs.filter(status=status_param)
-        return qs.distinct()
-
-    def _actor_label(self) -> str:
-        user = self.request.user
-        return user.get_full_name() or user.username
-
-    def perform_create(self, serializer):
-        instance = serializer.save(id=_next_article_id(), updated_by=self._actor_label())
-        self._sync_all(instance)
-
-    def perform_update(self, serializer):
-        instance = serializer.save(updated_by=self._actor_label())
-        self._sync_all(instance)
-
-    def _sync_all(self, instance):
-        self._sync_weaknesses(instance)
-        self._sync_foods(instance)
-        self._sync_points(instance)
-        self._sync_products(instance)
-
-    def _sync_weaknesses(self, instance):
-        """약점 태그를 요청 본문으로 통째로 교체한다. 인스턴스 단위 delete()/create()만
-        쓴다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
-        """
-        data = self.request.data
-        if "weakness_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("weakness_ids") or [])}
-        current = {str(w) for w in instance.weaknesses.values_list("id", flat=True)}
-        for wid in current - target:
-            ArticleWeakness.objects.get(article=instance, weakness_id=wid).delete()
-        for wid in target - current:
-            ArticleWeakness.objects.create(article=instance, weakness_id=wid)
-
-    def _sync_foods(self, instance):
-        """참고정보(식품군)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
-        data = self.request.data
-        if "food_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("food_ids") or [])}
-        current = {str(w) for w in instance.linked_foods.values_list("id", flat=True)}
-        for fid in current - target:
-            ArticleFood.objects.get(article=instance, food_id=fid).delete()
-        for fid in target - current:
-            ArticleFood.objects.create(article=instance, food_id=fid)
-
-    def _sync_points(self, instance):
-        """참고정보(혈자리)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
-        data = self.request.data
-        if "point_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("point_ids") or [])}
-        current = {str(w) for w in instance.linked_points.values_list("id", flat=True)}
-        for pid in current - target:
-            ArticlePoint.objects.get(article=instance, point_id=pid).delete()
-        for pid in target - current:
-            ArticlePoint.objects.create(article=instance, point_id=pid)
-
-    def _sync_products(self, instance):
-        """참고정보(제품)를 요청 본문으로 통째로 교체한다(인스턴스 단위 delete()/create()만)."""
-        data = self.request.data
-        if "product_ids" not in data:
-            return
-        target = {str(w) for w in (data.get("product_ids") or [])}
-        current = {str(w) for w in instance.linked_products.values_list("id", flat=True)}
-        for pid in current - target:
-            ArticleProduct.objects.get(article=instance, product_id=pid).delete()
-        for pid in target - current:
-            ArticleProduct.objects.create(article=instance, product_id=pid)
+    def sync_children(self, instance):
+        for key, (through, related_field) in self.REFERENCE_LINKS.items():
+            if key not in self.request.data:
+                continue
+            sync_relation(
+                instance,
+                through=through,
+                parent_field="article",
+                related_field=related_field,
+                target_ids=self.request.data.get(key) or [],
+            )
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024
-_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 _ALLOWED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+# 파일의 실제 앞부분(매직 바이트). 브라우저가 보낸 content_type은 위조할 수 있으므로
+# 그것만 믿으면 SVG/HTML을 image/png라고 우겨서 올릴 수 있다(저장형 XSS 경로).
+_MAGIC_PREFIXES = (
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"\xff\xd8\xff", ".jpg"),
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+)
+
+
+def _sniff_image_ext(file) -> str | None:
+    """파일 내용으로 실제 이미지 종류를 판별한다. 모르면 None."""
+    head = file.read(16)
+    file.seek(0)
+    for prefix, ext in _MAGIC_PREFIXES:
+        if head.startswith(prefix):
+            return ext
+    # WebP: "RIFF"...."WEBP"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return ".webp"
+    return None
 
 
 class ImageUploadView(APIView):
     """관리자 화면 공통 이미지 업로드. docs/04_design_system.md §4 — 파일 스토리지에
-    저장하고 경로(URL)만 돌려준다. 어느 화면(resource)에서 왔는지는 요청 본문으로
-    받아 그 리소스의 write 권한을 검사한다(화면마다 전용 뷰를 새로 만들지 않기 위함).
+    저장하고 경로(URL)만 돌려준다. 대상 화면(resource)은 요청 본문으로 받고, 권한은
+    AdminResourcePermission이 라우트 진입 지점에서 판정한다(§2).
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AdminResourcePermission]
+    required_action = "write"
+
+    def get_resource(self, request):
+        return request.data.get("resource")
 
     def post(self, request):
-        resource = request.data.get("resource")
         file = request.FILES.get("file")
-        if not resource or not file:
+        if not request.data.get("resource") or not file:
             return Response({"detail": "resource, file은 필수다."}, status=status.HTTP_400_BAD_REQUEST)
-        if file.content_type not in _ALLOWED_IMAGE_TYPES:
-            return Response({"detail": "이미지 파일만 업로드할 수 있다."}, status=status.HTTP_400_BAD_REQUEST)
         if file.size > _MAX_UPLOAD_BYTES:
             return Response({"detail": "5MB를 넘는 파일은 업로드할 수 없다."}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = request.user
-        has_write = (
-            hasattr(user, "admin_profile")
-            and AdminPermission.objects.filter(
-                role_id=user.admin_profile.role_id, resource=resource, action="write", allowed=True
-            ).exists()
-        )
-        if not has_write:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+        # 확장자·content_type이 아니라 파일 내용으로 판정한다.
+        ext = _sniff_image_ext(file)
+        if ext is None:
+            return Response(
+                {"detail": "이미지 파일만 업로드할 수 있다(png/jpg/gif/webp)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        ext = os.path.splitext(file.name)[1].lower()
-        if ext not in _ALLOWED_IMAGE_EXTS:
-            ext = ".png"
+        resource = request.data.get("resource")
         saved_path = default_storage.save(f"{resource}/{uuid.uuid4().hex}{ext}", file)
         return Response({"url": default_storage.url(saved_path)}, status=status.HTTP_201_CREATED)
