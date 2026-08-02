@@ -2,22 +2,64 @@
 
 > 순서에 근거가 있다. 임의로 바꾸면 나중에 되돌아가야 하는 지점이 있다.
 
-## 지금 상태 (세션 인수인계 — 2026-08-01 업데이트, 체크포인트 11 완료 — M1 전체 완료)
+## 지금 상태 (세션 인수인계 — 2026-08-01, M1 완료 → M2 착수 직전)
 
-**M0 완료 + M1 전체 10개 화면 실동작.** 약점(adm_003) → 64유형(adm_002) → 영양소(adm_022) → 약재(adm_023) → 식품군(adm_025) → 혈자리(adm_026) → 건강신호(adm_007a) → 예측질환(adm_007b) → 제품(adm_027) → 요법관리(adm_024) 전부 목록·상세 CRUD가 브라우저에서 실데이터로 끝까지 확인됐다. **M1이 여기서 끝난다.**
+### 한 줄 요약
 
-- **바로 이어서 할 일**: M2(고객 코어 플로우)부터 시작한다. `docs/06_decisions.md` #13, `docs/02_architecture_constraints.md` §6을 먼저 읽을 것 — 문진이 로그인보다 먼저라는 순서 변경 근거가 거기 있다. 스플래시 → 문진(mock 판별) → 결과 티저 순.
-- **재사용 가능한 공통 컴포넌트(전부 `/system/design`에 살아있는 카탈로그로 모여 있다)**: `DataTable`(Column.width로 공통열 폭 고정)·`Card`/`DetailLayout`·`PublishBox`·`MetaPanel`·`FormRow`/`TextInput`(자동완성 listOptions 지원)/`TextArea`/`SegToggle`·`WeaknessTagPicker`·`ImageField`(파일 선택→256px 축소→업로드→URL 저장)·`RepeatableCards`(§C 카드 반복)·`PickerModal`/`CuratedPickList`(약점 필터 있는 큐레이션)/`ReferencePickList`(약점 필터 없는 참고정보 연결, adm_024가 씀)·`RichTextEditor`(경량 리치에디터, contentEditable+execCommand)·`IllnessRateRows`·`BodySlider`·`StatusBadge`. M1 전체에서 새로 만든 도메인 컴포넌트는 이 목록이 전부다.
-- **체크포인트 4(영양소)**: 대표 이미지를 처음엔 base64 인라인으로 만들었다가, `docs/04_design_system.md` §4(파일 스토리지 + 경로만 DB) 확인 후 되돌렸다 — 왜 08과 04를 같이 봐야 하는지는 `docs/06_decisions.md` #20. 실제 파일 업로드(`POST /api/content/image-upload/` → Django `default_storage` → URL 저장) 구현. §C 반복 카드 리스트 패턴을 `RepeatableCards`로 처음 구현. 뒤이어 프로토타입 '디자인 시스템' 카탈로그를 `/system/design`으로 이식(`docs/06_decisions.md` #22), CSS에서 빠져 있던 `.btn.xs` 발견·추가, 목록 상태 열 폭 고정(`docs/05_screen_conventions.md` A-3-1).
-- **체크포인트 5~9(약재·식품군·혈자리·건강신호·예측질환)**: §C(카드 반복)와 §B(단일 레코드+약점 체크박스) 두 패턴이 예상대로 재사용됐다 — 다섯 다 새 공통 컴포넌트 없이 조립만으로 끝났다. 핵심성분·효능기전처럼 반복되는 "자유텍스트+자동완성" 패턴은 `TextInput`에 `listOptions` prop을 추가해 흡수했다. 예측질환은 건강신호와 필드 구조가 완전히 동일(`name`/`description`/`image`+약점) — `category`는 모델엔 있지만 프로토타입처럼 UI에 노출하지 않고 값만 보존.
-- **체크포인트 10(제품)**: 지금까지 유일하게 약점 태그가 없는 구조 — `name`/`description`/`image`/`url`뿐이다(§B도 아닌 최단순형). `WeaknessTagPicker` 대신 URL `TextInput`+힌트 텍스트만 있어 뷰셋에 `_sync_weaknesses`가 아예 없다.
-- **체크포인트 11(요법관리, M1 마지막)**: M1에서 가장 복잡한 화면 — 유형(kind, `SegToggle` 4옵션)·경량 리치에디터(본문, 새 `RichTextEditor` 컴포넌트)·약점 다중선택(필수)·참고정보 3종(식품군·혈자리·제품, 새 `ReferencePickList` 컴포넌트로 약점 필터 없이 마스터 전체에서 선택)·대표이미지·영상URL까지 총 4개의 m2m 연결(약점+식품+혈자리+제품)을 한 화면에서 다룬다. 뷰셋에 `_sync_weaknesses`/`_sync_foods`/`_sync_points`/`_sync_products` 4개가 각각 인스턴스 단위 delete()/create()로 존재한다. 저장 후 사용자 요청으로 대표이미지 위치를 참고정보 카드에서 기본정보 카드(설명 아래·연결약점 위)로 옮겼다.
-- **로컬 개발 DB 유의사항**: 화면에서 저장(카드 "통째로 교체")한 뒤 `seed_demo`를 재실행하면 카드가 중복될 수 있다 — 원인과 대처는 `docs/06_decisions.md` #21.
-- **브라우저 자동화 유의사항**: 헤드리스 브라우저 도구의 스크린샷 해상도와 실제 뷰포트가 안 맞을 때가 있다 — 좌표 클릭이 엉뚱한 요소를 때릴 수 있다. 클릭이 안 먹히면 `read_page`로 `ref_N`을 얻어 `ref` 기반 클릭/`form_input`으로 바꿀 것(좌표 계산에 안 걸림). 목록 화면의 테이블 행(`<tr onClick>`)은 접근성 트리에 인터랙티브 요소로 안 잡히므로, 상세 화면 진입은 좌표 클릭 대신 URL 직접 이동(`/content/xxx/ID`)이 더 안정적이다.
-- **테스트**: 백엔드 71개 통과(`pytest`), bandit·감사로그 우회 검사·`tsc -b`·`oxlint` 전부 클린. M1 10개 화면 전부 브라우저로 목록→상세→저장→재조회 라운드트립 + 신규 생성 + 삭제(API 직접 확인, `window.confirm`은 헤드리스 한계로 버튼 클릭까지만) 확인함. 요법관리는 추가로 리치에디터 HTML 저장, 참고정보 피커 모달 선택→저장→API 확인까지 검증.
-- **아직 안 한 것**: "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2)는 여전히 TODO, `window.confirm` 삭제 흐름은 헤드리스 자동화로 검증 불가(수동 확인만 가능). M2(고객 코어 플로우)는 아직 시작 전.
-- **이 컴퓨터(`Genie-Blue`, 8GB RAM)에 설치된 도구**: Python 3.12 · Node.js LTS · uv · GNU Make(`ezwinports.make`) · GitHub CLI(`gh`, 인증됨) — 전부 winget으로 설치, PATH는 터미널 재시작해야 새로 인식됨(설치 직후만 해당)
-- **로컬 개발 명령**: `make setup`(최초 1회) → `make dev`(관리자 화면) 또는 `make dev-app`(고객 화면). Docker 안 씀 — DB는 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16)
+**M0 + M1(관리자 콘텐츠 마스터 10화면) 완전히 끝나서 커밋됨(`44d24a1`, 작업트리 clean).** 다음은 **M2 — 고객 코어 플로우**(app-web). 이 세션은 여기서 끊기고 다른 세션이 이어받는다. 아래는 그 세션이 바로 시작할 수 있도록 쓴 것이다.
+
+### M1이 남긴 것 (M2에서 그대로 재사용 가능)
+
+- **관리자 화면 10개** 전부 목록·상세 CRUD 실동작 확인됨: 약점(adm_003)·64유형(adm_002)·영양소(adm_022)·약재(adm_023)·식품군(adm_025)·혈자리(adm_026)·건강신호(adm_007a)·예측질환(adm_007b)·제품(adm_027)·요법관리(adm_024).
+- **콘텐츠 API가 이미 전부 있다.** `/api/content/*` — 64유형·약점·영양소·약재·식품군·혈자리·건강신호·예측질환·제품·요법관리(article, 식이/지압마사지/생활/뜸) 전부 REST로 조회 가능. M3(처방 스트림)이 이걸 그대로 소비한다. M2는 직접 쓰진 않지만 결과화면에서 체질 정보를 보여줄 때 `/api/content/tem-types/{id}/`를 쓰게 된다.
+- **판별 어댑터가 이미 동작한다** — 새로 만들 필요 없음:
+  - `POST /api/diagnosis/run/` — **비로그인 허용**(`AllowAny`), body에 `answers`(배열) 전달 → `{raw: 1~64, status: "완료"}` 반환. `delay_seconds`/`force_fail`/`force_timeout`을 body로 넘기면 sc_009a(결과 대기)의 지연·실패·타임아웃 UI를 실제 백엔드 없이 재현할 수 있다(`backend/apps/diagnosis/views.py`, `providers.py`).
+  - `POST /api/diagnosis/save/` — **로그인 필요**, body `{raw, provider}` → `diagnosis_result` 생성. 가입 완료 직후(sc_004b 진입 시) 클라이언트가 들고 있던 raw 값을 여기로 보낸다.
+  - 세션 인증은 `/api/accounts/{csrf,me,login,logout}/`가 이미 있다. **단, `signup`(회원가입) 엔드포인트는 없다** — 지금 있는 건 로그인/관리자 dev-login뿐. sc_091(로그인) 화면이 실은 "로그인 또는 가입"을 겸해야 하므로 이 엔드포인트부터 새로 만들어야 한다.
+
+### M2에서 새로 만들어야 하는 것 (진짜 갭)
+
+1. **회원가입 API** — `apps/accounts`에 없음. 소셜 로그인 여부·이메일/전화 방식 등은 명세서 sc_091 행을 먼저 확인할 것.
+2. **약관·동의 Django 모델이 아예 없다.** `schema/02_service_1st.sql` 82~127행에 `terms_document`/`terms_version`/`consent_item`/`user_consent` 테이블이 **설계는 이미 돼 있는데**, `apps/consent`·`apps/privacy`는 `models.py`가 빈 스텁이고 마이그레이션도 없다. sc_092(약관 동의 — 민감정보 별도동의·만 14세 확인·마케팅 수신동의 포함)를 만들려면 이 모델들부터 스키마대로 옮겨야 한다. **관리자 화면(adm_016/adm_038/adm_017)은 M4라 아직 없어도 되지만, 고객이 남기는 동의 기록 자체는 M2 완료 조건이라 지금 필요하다.**
+3. **문진 문항(30~40개) 데이터가 어디에도 없다.** `schema/`에 `question`류 테이블이 아예 없는 걸 보면 **DB가 아니라 fixture(JSON) 취급이 맞다** — `docs/07_milestones.md`(이 파일) M2 섹션에도 "문항은 fixture, 판별은 mock"이라고 명시돼 있다. 그런데 fixture 파일 자체가 아직 없다. **이건 건강/의료 관련 콘텐츠라 임의로 지어내지 말고, 문항 30~40개(질문 텍스트 + 선택지)를 사용자에게 받거나 확정 방법을 먼저 물어볼 것.** 문항 유형은 명세서상 "다중택일(라디오) 또는 다지선다(체크박스)" 두 가지가 섞여 있다(sc_009 UI요소 3번).
+4. **app-web 프론트가 사실상 빈 골격이다.** 지금 있는 파일은 `tokens.ts`(체크포인트1 최소값 — 색 6개·간격 5개·radius 2개뿐, 실값 아님)·`core/api/client.ts`·`ui/App.tsx` 세 개뿐. 라우팅도, 인증 스토어도, 레이아웃도 없다. admin-web(`api/client.ts`+`store/auth.ts`+`components/AdminLayout.tsx`+`App.tsx` 라우팅)을 참고해서 고객용으로 새로 짜야 한다 — 다만 **admin-web 컴포넌트를 그대로 재사용하면 안 된다.** CLAUDE.md §2-5: 고객 프론트는 "RN 전환 대비"로 `core`/`ui` 분리·토큰 단일 소스·flex 우선을 지켜야 하고 관리자 쪽 Tailwind 클래스 스타일을 그대로 베끼지 않는다.
+5. **M2 화면엔 시각적 참조 프로토타입이 없다.** `prototype/`엔 `admin_prototype.html`(관리자용)과 `prescription_stream_mockup.html`(M3 처방 스트림 전용) 둘뿐이고, 스플래시·문진·온보딩·결과 화면(M2)을 보여주는 목업은 존재하지 않는다. M1처럼 "프로토타입 구조를 그대로 옮기기"가 안 통한다 — 명세서(`spec/temcare_customer-screen-spec_v5.xlsx`) 시트2의 텍스트 UI요소 설명이 유일한 근거다. 화면 톤·레이아웃이 명세서만으로 판단하기 애매하면 **임의로 디자인하지 말고 먼저 물어볼 것** (CLAUDE.md의 `📌` 원칙과 같은 취지).
+6. **`DiagnosisResult.type_id` 매핑이 아직 미완성이다.** 지금은 raw 정수를 문자열로만 넣고 있다(`views.py`의 `_record_stat` 주석에 "★ TODO(M1): type_id는 지금 raw 값을 그대로 쓴다"라고 이미 표시돼 있음 — M1이 끝났으니 이제 처리할 시점). raw(1~64) → 실제 `tem_type.id`(`TEM01`~`TEM64`) 매핑 규칙을 확정하고 FK로 연결해야 결과 상세(sc_004b)에서 진짜 체질 데이터를 끌어올 수 있다.
+7. **`tem_type` 시드가 6개뿐이다(전체 64개 아님).** `seed_demo`로 로컬 개발 중에는 raw 1~64 중 대부분이 "해당 체질 없음"에 걸린다는 뜻 — 개발용으로 몇 개만 있어도 되는지, 아니면 64개 더미를 채워야 하는지 확인할 것. 실데이터 입력은 M6 소관이라 지금 64개를 다 채우라는 뜻은 아니다.
+
+### M2 진행 순서 (명세서 화면ID 기준)
+
+```
+스플래시(sc_090)
+→ 문진 유도(sc_004a, 비로그인) → 문진 설명(sc_008) → 문진 진행(sc_009, 응답은 클라이언트에만 보관) → 결과 대기(sc_009a)
+→ 결과 티저(sc_010, 비로그인 — 유형명/별명만, '자세히 보기'가 로그인行)
+→ 로그인/가입(sc_091) → 약관 동의(sc_092, 민감정보 별도동의·만14세확인·마케팅동의) → 접근권한 안내(sc_093)
+  → 가입 완료 시점에 raw_value를 서버로 전송해 diagnosis_result 생성
+→ 결과 상세: 결과 홈(sc_004b) → 건강신호(sc_005) → 예측질환(sc_006 + sc_006a 모달)
+→ 홈(sc_101, 1차는 홈/더보기 2탭만)
+```
+
+M2 완료 기준: **로그인 없이 문진을 끝내면 결과 티저가 뜨고, 거기서 가입하면 문진 응답이 저장되며 상세 결과가 보인다.**
+
+### 순서 근거 — 왜 로그인보다 문진이 먼저인가
+
+`docs/02_architecture_constraints.md` §6, `docs/06_decisions.md` #13 필독. 요지: 카톡 공유로 들어온 사람이 로그인부터 요구받으면 이탈한다 — "일단 풀어보고, 궁금해지면 그때 가입"으로 순서를 뒤집었다. 비로그인 문진 응답은 서버에 저장하지 않고 클라이언트에만 들고 있다가 가입 완료 시점에 한 번에 전송한다(§4, 동의 없이 개인정보를 먼저 모아두지 않기 위함). 📌 미확정: 문진 응답 원문 보관 여부 — 1차 기본값은 "보관 안 함, 결과값만"(`DiagnosisResult`에 이미 그렇게 구현돼 있음).
+
+### 이번 세션(M1)에서 확인된 개발/검증 절차 — M2에도 그대로 적용
+
+1. 화면 만들기 전 명세서 해당 행 먼저 읽기(`spec/*.xlsx` 시트2). 프로토타입 있으면 grep으로 **살아있는 등록 블록**부터 확인(동일 screen-id가 두 번 등록되면 나중 것이 유효 — 이번 세션에서 반복 확인된 패턴).
+2. 백엔드: `pytest -q` 전체 통과 + `bandit -r apps config -x '*/migrations/*,*/tests.py' -q` 클린 + `QuerySet.update/delete`·`bulk_create/update`·`cursor.execute` grep(주석 제외 매치 0건 — 감사로그 우회 4종 금지, CLAUDE.md §5).
+3. 프론트: `npx tsc -b`·`npx oxlint` 클린.
+4. `python manage.py seed_demo` 재시드 후 브라우저로 실제 라운드트립: 목록 렌더 → 신규 생성 → API로 직접 fetch해 저장값 확인 → 테스트 레코드 삭제(DELETE fetch, `window.confirm`은 헤드리스에서 못 누르므로 API로 우회) → 목록 개수 원복 확인.
+5. 헤드리스 브라우저 팁: 좌표 클릭이 안 먹히면 `read_page`로 `ref_N` 받아 `ref` 기반 클릭/`form_input` 사용. 목록 테이블 행(`<tr onClick>`)은 접근성 트리에 안 잡히므로 상세 진입은 URL 직접 이동(`/xxx/ID`)이 더 안정적.
+6. 커밋은 **사용자가 명시적으로 "커밋해줘"라고 할 때만.** 화면/기능 단위로 쪼개서 커밋 메시지에 왜(정확히는 무엇을 검증했는지) 남긴다.
+
+### 로컬 개발 환경
+
+- `Genie-Blue`(8GB RAM): Python 3.12 · Node.js LTS · uv · GNU Make · GitHub CLI(`gh`, 인증됨) — winget 설치, PATH는 터미널 재시작 필요(설치 직후만).
+- 실행: `make setup`(최초 1회) → `make dev`(관리자, admin-web) 또는 `make dev-app`(고객, app-web). Docker 안 씀 — 로컬 SQLite, PostgreSQL 호환은 CI가 검증(`docs/06_decisions.md` #16).
+- Vite는 `strictPort` 켜져 있다(이번 세션 마지막 커밋에서 추가) — 포트 충돌 시 다른 포트로 조용히 안 넘어가고 바로 실패한다. `CSRF_TRUSTED_ORIGINS`에 없는 오리진으로 뜨면 저장할 때만 뜬금없이 403이 나서 원인 찾기 어려웠던 실제 사례가 있었다.
+- 아직 안 한 것(M1 잔여 TODO, M2와 무관하게 남음): "권한 없는 접근이 감사로그에 남는가" 체크리스트(`docs/02_architecture_constraints.md` §2), `window.confirm` 삭제 흐름의 수동(비헤드리스) 검증.
 - 자세한 항목별 체크는 바로 아래 M0 목록의 ✅ 표시 참고. 결정 이력은 `docs/06_decisions.md`(현재 #17까지).
 
 ## M0 — 기반 (여기가 제일 중요하다)
