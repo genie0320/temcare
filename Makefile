@@ -19,7 +19,7 @@ test:
 	cd app-web && npm run test
 
 lint:
-	cd backend && uv run bandit -r apps config -x '*/migrations/*,*/tests.py' -q
+	cd backend && uv run bandit -r apps config -x '*/migrations/*,*/tests.py,*/test_*.py' -q
 	cd backend && bash scripts/check_audit_bypass.sh
 	cd app-web && npx tsc -b && npx oxlint
 	cd admin-web && npx tsc -b && npx oxlint

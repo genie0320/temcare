@@ -57,7 +57,10 @@ jobs:
         run: uv run pip-audit
 
       - name: bandit — 파이썬 정적분석
-        run: uv run bandit -r apps config -x '*/migrations/*,*/tests.py' -q
+        # 테스트 파일은 제외한다 — assert는 테스트의 본체라 B101이 전부 걸린다.
+        # ★ tests.py만 빼면 test_*.py가 새어 들어온다(실제로 CI가 여기서 깨졌다).
+        #   Makefile의 lint와 같은 규칙을 쓴다 — 갈라지면 로컬만 초록이 된다.
+        run: uv run bandit -r apps config -x '*/migrations/*,*/tests.py,*/test_*.py' -q
 
       - name: 감사로그 우회 패턴 검사
         run: bash scripts/check_audit_bypass.sh
