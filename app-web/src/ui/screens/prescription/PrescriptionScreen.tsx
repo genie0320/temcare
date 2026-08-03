@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 
 import { fetchPrescription } from '../../../core/api/prescription'
-import { Button } from '../../components/Button'
-import { Screen } from '../../components/Screen'
+import { DataScreen } from '../../components/DataScreen'
+import { resultGate } from '../../components/ResultGate'
 import { TopBar } from '../../components/TopBar'
 import { ROUTES } from '../../routes'
 import { DietStation, HerbSpotlight, LifeStation, NutritionStation } from './Stations'
@@ -29,39 +29,17 @@ const STATIONS = [
 
 export function PrescriptionScreen() {
   const navigate = useNavigate()
-  const { data, isPending } = useQuery({ queryKey: ['prescription'], queryFn: fetchPrescription })
+  const query = useQuery({ queryKey: ['prescription'], queryFn: fetchPrescription })
 
-  if (isPending) {
-    return (
-      <Screen header={<TopBar />} center>
-        <p className="text-center text-body text-muted">불러오는 중…</p>
-      </Screen>
-    )
-  }
-
-  if (!data?.hasResult) {
-    return (
-      <Screen
-        header={<TopBar />}
-        center
-        footer={<Button onClick={() => navigate(ROUTES.surveyIntro)}>문진 시작하기</Button>}
-      >
-        <p className="text-center text-body text-muted">아직 문진 결과가 없어요.</p>
-      </Screen>
-    )
-  }
-
-  if (!data.found) {
-    // 개발 중에만 보이는 상태 — tem_type 시드가 6개뿐이다(📌).
-    return (
-      <Screen header={<TopBar />} center>
-        <p className="text-center text-hint text-orange-500">
-          {data.typeId} — 이 체질의 콘텐츠가 아직 없어요. (개발용 시드 미완성)
-        </p>
-      </Screen>
-    )
-  }
-
+  return (
+    <DataScreen
+      query={query}
+      gate={resultGate}
+      errorLabel="인생처방을 불러오지 못했어요."
+      header={<TopBar title="내 몸을 아끼는 길" homeLink />}
+      bleed
+    >
+      {(data) => {
   const nutrition = data.nutrition ?? []
   const diet = data.diet ?? { good: [], limit: [] }
   const life = data.life ?? []
@@ -69,7 +47,7 @@ export function PrescriptionScreen() {
   const hasHerb = herb.groups.length > 0
 
   return (
-    <Screen header={<TopBar />} bleed>
+      <>
       {/* 히어로 — 여기서만 배경이 화면 끝까지 닿는다(Screen bleed). */}
       <div className="flex flex-col gap-sm bg-linear-to-b from-surface to-bg px-lg pb-lg">
         <span className="self-start rounded-pill bg-green-50 px-md py-xs text-caption font-bold text-primary-dark">
@@ -155,7 +133,10 @@ export function PrescriptionScreen() {
           본 정보는 참고용이며 진단이 아닙니다.
         </p>
       </div>
-    </Screen>
+      </>
+  )
+      }}
+    </DataScreen>
   )
 }
 

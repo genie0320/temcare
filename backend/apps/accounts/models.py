@@ -21,6 +21,25 @@ class User(AbstractUser, AuditedModel):
 
     GENDER_CHOICES = [("남성", "남성"), ("여성", "여성")]
 
+    # 감사로그에 원문을 남기지 않을 칸(변경 사실은 남는다). AuditedModel 주석 참고.
+    #
+    # password — 인증정보다. 감사 목적에 값이 필요한 적이 한 번도 없고, 남겨두면
+    #   비밀번호를 바꿔도 옛 해시가 2년간 로그에 남는다.
+    # 나머지 — 개인정보다. 감사로그 화면(adm_020, M4)은 콘텐츠 권한만 있어도 열리는데
+    #   여기에 원문이 있으면 pii_read 분리가 뒷문으로 무력화된다.
+    #
+    # 📌 "누가 비밀번호를 바꿨나"를 사건 단위로 남기는 것은 별개 문제다. 비밀번호
+    #    변경 화면 자체가 M5(계정관리)라, 그때 명시적 감사 기록을 붙인다.
+    audit_secret_fields = (
+        "password",
+        "email",
+        "username",  # 이메일과 같은 값이 들어간다(가입 시 email을 username으로 쓴다)
+        "birth_date",
+        "gender",
+        "height_cm",
+        "weight_kg",
+    )
+
     nickname = models.CharField(max_length=50, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="정상")
 
@@ -44,6 +63,9 @@ class User(AbstractUser, AuditedModel):
 
 class UserSocial(AuditedModel):
     """소셜 로그인 연동 (schema.user_social)."""
+
+    # 소셜 식별자는 그 자체로 계정을 특정하는 값이다.
+    audit_secret_fields = ("social_id",)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="socials")
     provider = models.CharField(max_length=20)  # kakao | google | apple ...

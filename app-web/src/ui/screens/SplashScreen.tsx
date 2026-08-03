@@ -25,7 +25,7 @@ export function SplashScreen() {
   }, [status, navigate])
 
   return (
-    <Screen center>
+    <Screen center bare>
       <div className="flex flex-col items-center gap-md">
         <div className="flex h-[96px] w-[96px] items-center justify-center rounded-xl bg-primary text-hero font-bold text-white">
           올라

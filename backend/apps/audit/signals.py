@@ -3,7 +3,7 @@ from django.db.models.signals import post_delete, post_save, pre_save
 from . import context
 from .base import AuditedModel
 from .models import AuditLog
-from .serialize import model_to_safe_dict, to_json
+from .serialize import model_to_safe_dict, redact_pair, to_json
 
 
 def _table_name(instance) -> str:
@@ -34,6 +34,7 @@ def post_save_record(sender, instance, created, raw=False, **kwargs):
         return
     before = None if created else getattr(instance, "_audit_before", None)
     after = model_to_safe_dict(instance)
+    before, after = redact_pair(before, after, instance.audit_secret_fields)
     AuditLog.objects.create(
         actor_id=context.get_actor_id(),
         actor_type=context.get_actor_type(),
@@ -49,6 +50,7 @@ def post_save_record(sender, instance, created, raw=False, **kwargs):
 def post_delete_record(sender, instance, **kwargs):
     if not isinstance(instance, AuditedModel):
         return
+    before, _ = redact_pair(model_to_safe_dict(instance), None, instance.audit_secret_fields)
     AuditLog.objects.create(
         actor_id=context.get_actor_id(),
         actor_type=context.get_actor_type(),
@@ -56,7 +58,7 @@ def post_delete_record(sender, instance, **kwargs):
         action="delete",
         target_table=_table_name(instance),
         target_id=str(instance.pk),
-        before_json=to_json(model_to_safe_dict(instance)),
+        before_json=to_json(before),
         after_json=None,
     )
 

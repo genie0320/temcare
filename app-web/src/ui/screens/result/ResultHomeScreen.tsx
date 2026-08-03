@@ -5,7 +5,8 @@ import { fetchMyResult } from '../../../core/api/result'
 import { useAuthStore } from '../../../core/store/auth'
 import { BodyGauge } from '../../components/BodyGauge'
 import { Button } from '../../components/Button'
-import { Screen } from '../../components/Screen'
+import { DataScreen } from '../../components/DataScreen'
+import { resultGate } from '../../components/ResultGate'
 import { TopBar } from '../../components/TopBar'
 import { ROUTES } from '../../routes'
 import { HealthSignSection, IllnessSection } from './ResultSections'
@@ -29,54 +30,16 @@ import { HealthSignSection, IllnessSection } from './ResultSections'
 export function ResultHomeScreen() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const { data, isPending } = useQuery({ queryKey: ['my-result'], queryFn: fetchMyResult })
-
-  if (isPending) {
-    return (
-      <Screen center>
-        <p className="text-center text-body text-muted">불러오는 중…</p>
-      </Screen>
-    )
-  }
-
-  if (!data?.hasResult) {
-    return (
-      <Screen
-        header={<TopBar hideBack />}
-        center
-        footer={<Button onClick={() => navigate(ROUTES.surveyIntro)}>문진 시작하기</Button>}
-      >
-        <p className="text-center text-body text-muted">아직 문진 결과가 없어요.</p>
-      </Screen>
-    )
-  }
-
-  if (!data.found) {
-    // 개발 중에만 보이는 상태 — tem_type 시드가 6개뿐이다(📌).
-    return (
-      <Screen header={<TopBar hideBack />} center>
-        <div className="flex flex-col items-center gap-sm text-center">
-          <h1 className="text-title font-extrabold">{data.typeId}</h1>
-          <p className="text-hint text-orange-500">
-            이 체질의 콘텐츠가 아직 없어요. (개발용 시드 미완성)
-          </p>
-        </div>
-      </Screen>
-    )
-  }
+  const query = useQuery({ queryKey: ['my-result'], queryFn: fetchMyResult })
 
   return (
-    <Screen
-      header={
-        <TopBar
-          hideBack
-          right={
-            <button type="button" className="text-hint text-muted" onClick={() => navigate(ROUTES.home)}>
-              홈
-            </button>
-          }
-        />
-      }
+    <DataScreen
+      query={query}
+      gate={resultGate}
+      errorLabel="체질 결과를 불러오지 못했어요."
+      // 뒤로가기를 숨기는 이유: 가입 직후 replace로 들어오는 자리라 history back이
+      // 온보딩으로 되돌아간다. 나가는 문은 오른쪽 '홈'이다(결정 #34).
+      header={<TopBar title="체질분석결과" hideBack homeLink />}
       footer={
         <>
           {/* #10 — 결과(판정)에서 처방(행동)으로 넘어가는 유일한 문(결정 #28). */}
@@ -88,6 +51,7 @@ export function ResultHomeScreen() {
         </>
       }
     >
+      {(data) => (
       <div className="flex flex-col gap-lg pb-lg">
         {/* #1 */}
         <h1 className="text-title font-extrabold leading-snug">
@@ -154,6 +118,7 @@ export function ResultHomeScreen() {
 
         <p className="text-caption text-faint">본 정보는 참고용이며 진단이 아닙니다.</p>
       </div>
-    </Screen>
+      )}
+    </DataScreen>
   )
 }

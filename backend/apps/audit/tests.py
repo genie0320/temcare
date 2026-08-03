@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 import pytest
 from rest_framework.test import APIClient
@@ -40,7 +41,7 @@ def test_update_writes_audit_log_with_before_and_after():
 
 @pytest.mark.django_db
 def test_delete_writes_audit_log():
-    user = User.objects.create(username="tester3")
+    user = User.objects.create(username="tester3", nickname="지워질닉네임")
     pk = user.pk
     user.delete()
 
@@ -48,7 +49,10 @@ def test_delete_writes_audit_log():
         "created_at"
     )
     assert log.after_json is None
-    assert json.loads(log.before_json)["username"] == "tester3"
+    before = json.loads(log.before_json)
+    assert before["nickname"] == "지워질닉네임"
+    # username(=이메일)은 개인정보라 삭제 기록에서도 원문이 남지 않는다.
+    assert before["username"] == "***"
 
 
 @pytest.mark.django_db
@@ -197,3 +201,75 @@ def test_anonymous_denied_access_is_not_recorded():
 
     assert APIClient().get("/api/content/foods/").status_code in (401, 403)
     assert AuditLog.objects.filter(action="deny").count() == 0
+
+
+# ── 감사로그에 남으면 안 되는 것 ──────────────────────────────────
+#
+# 감사로그는 법정 2년 보관이고 운영자가 월 1회 점검으로 열어본다. 여기에 원문이
+# 담기면 인증정보·개인정보의 두 번째 사본이 생기고, pii_read 권한 분리가
+# 뒷문으로 무력화된다(CLAUDE.md §2-1).
+
+
+@pytest.mark.django_db
+def test_audit_log_never_stores_password():
+    """★ 비밀번호 해시가 감사로그에 남으면 안 된다.
+
+    남겨두면 사용자가 비밀번호를 바꿔도 옛 해시가 2년간 로그에 남는다.
+    """
+    user = User.objects.create_user(username="pw@example.com", email="pw@example.com", password="FirstPass!234")
+    user.set_password("SecondPass!234")
+    user.save()
+
+    dumps = " ".join(
+        (row.before_json or "") + (row.after_json or "")
+        for row in AuditLog.objects.filter(target_table="accounts_user")
+    )
+    assert "pbkdf2" not in dumps, f"비밀번호 해시가 감사로그에 새고 있다: {dumps}"
+    assert "FirstPass" not in dumps and "SecondPass" not in dumps
+
+
+@pytest.mark.django_db
+def test_audit_log_masks_personal_data_but_keeps_the_fact_of_change():
+    """개인정보는 원문 대신 마스크로 남기되, **바뀌었다는 사실은 남아야** 한다.
+
+    둘 중 하나만 지키면 안 된다 — 원문이 남으면 개인정보가 새고, 변경 사실까지
+    지우면 감사로그가 감사 기능을 잃는다.
+    """
+    user = User.objects.create_user(
+        username="pii@example.com", email="pii@example.com", password="x!23456789"
+    )
+    user.birth_date = date(1988, 4, 11)
+    user.gender = "여성"
+    user.save()
+
+    AuditLog.objects.all().delete()
+    user.birth_date = date(1990, 12, 25)
+    user.save()
+
+    log = AuditLog.objects.get(target_table="accounts_user")
+    after = json.loads(log.after_json)
+
+    assert "1990" not in log.after_json and "1988" not in (log.before_json or ""), "생년월일 원문이 남았다"
+    assert "pii@example.com" not in log.after_json, "이메일 원문이 남았다"
+    # 바뀐 칸은 바뀌었다고, 안 바뀐 칸은 조용히.
+    assert after["birth_date"] == "***(변경됨)", after["birth_date"]
+    assert after["gender"] == "***", after["gender"]
+    # 개인정보가 아닌 칸은 그대로 보여야 추적이 된다.
+    assert after["status"] == "정상"
+
+
+@pytest.mark.django_db
+def test_audit_log_still_records_content_values_in_full():
+    """★ 마스킹이 콘텐츠 마스터까지 번지면 안 된다.
+
+    가릴 대상은 인증정보·개인정보뿐이다. 콘텐츠는 '무엇이 어떻게 바뀌었는가'가
+    그대로 보여야 운영자가 되돌릴 수 있다.
+    """
+    food = Food.objects.create(id="FOOD-09", polarity="권장", component="원래값")
+    AuditLog.objects.all().delete()
+    food.component = "바뀐값"
+    food.save()
+
+    log = AuditLog.objects.get(target_table="food")
+    assert json.loads(log.before_json)["component"] == "원래값"
+    assert json.loads(log.after_json)["component"] == "바뀐값"

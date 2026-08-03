@@ -48,8 +48,9 @@ export function ConsentScreen() {
   const [viewing, setViewing] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const { data: items = [] } = useQuery({ queryKey: ['consent-items'], queryFn: fetchConsentItems })
-  const { data: terms } = useQuery({
+  const itemsQuery = useQuery({ queryKey: ['consent-items'], queryFn: fetchConsentItems })
+  const items = itemsQuery.data ?? []
+  const { data: terms, isError: termsFailed } = useQuery({
     queryKey: ['terms', viewing],
     queryFn: () => fetchTerms(viewing!),
     enabled: viewing !== null,
@@ -98,6 +99,10 @@ export function ConsentScreen() {
               </p>
               <p className="whitespace-pre-wrap text-body leading-relaxed">{terms.body}</p>
             </>
+          ) : termsFailed ? (
+            // 약관 전문을 못 읽는 채로 동의를 받으면 안 된다 — 무엇에 동의하는지
+            // 볼 수 없는 상태이기 때문이다. 조용히 빈 화면을 두지 않는다.
+            <p className="text-body text-muted">약관 전문을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
           ) : (
             <p className="text-body text-muted">불러오는 중…</p>
           )}
@@ -121,6 +126,18 @@ export function ConsentScreen() {
           <br />
           동의가 필요해요
         </h1>
+
+        {/* 동의 항목을 못 불러오면 체크박스가 하나도 안 뜨고, 그러면 '네, 모두
+            동의해요'가 영원히 비활성이라 가입이 막다른 길이 된다. 왜 막혔는지는
+            말해줘야 사용자가 자기 잘못이라고 생각하지 않는다. */}
+        {itemsQuery.isError ? (
+          <div className="flex flex-col items-start gap-sm rounded-md bg-surface p-md">
+            <p className="text-body text-muted">약관 항목을 불러오지 못했어요.</p>
+            <Button variant="ghost" inline onClick={() => void itemsQuery.refetch()}>
+              다시 시도
+            </Button>
+          </div>
+        ) : null}
 
         <div className="flex flex-col rounded-md bg-surface px-md py-sm">
           <CheckRow checked={allAgreed} onToggle={toggleAll} label="전체 동의하기" strong />

@@ -10,7 +10,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.content.models import Illness, TemType, TemTypeIllness, Weakness
+from apps.content.models import HealthSign, Illness, TemType, TemTypeIllness, Weakness
 from apps.diagnosis.models import DiagnosisResult
 
 
@@ -127,3 +127,30 @@ def test_my_result_does_not_leak_other_users_result(customer, tem05):
     client = APIClient()
     client.force_authenticate(customer)
     assert client.get("/api/result/me/").json() == {"hasResult": False}
+
+
+@pytest.mark.django_db
+def test_my_result_hides_unpublished_weakness(customer, tem05):
+    """★ 초안·숨김 상태인 약점은 고객에게 보이면 안 된다.
+
+    약점은 모든 콘텐츠 연결의 축이라(CLAUDE.md §6) 여기가 새면 두 겹으로 샌다.
+    첫째, 약점의 **캐치프레이즈**는 고객 화면에 그대로 노출되는 문안이다
+    (예: '똥 막힌 하수도'). 다듬기 전 초안이 그대로 보인다.
+    둘째, 그 약점을 타고 건강신호·요법·약재까지 **딸려 나온다**.
+    """
+    draft = Weakness.objects.create(id="WEAK-99", name="작성중약점", catchphrase="아직 다듬지 않은 문안", status="초안")
+    tem05.weaknesses.add(draft)
+    published_sign = HealthSign.objects.create(id="SIGN-01", name="공개신호")
+    draft_sign = HealthSign.objects.create(id="SIGN-99", name="초안약점에만걸린신호")
+    published_sign.weaknesses.add(Weakness.objects.get(id="WEAK-01"))
+    draft_sign.weaknesses.add(draft)
+    DiagnosisResult.objects.create(user=customer, raw_value=5, type_id="TEM05")
+
+    client = APIClient()
+    client.force_authenticate(customer)
+    body = client.get("/api/result/me/").json()
+
+    assert [w["id"] for w in body["weaknesses"]] == ["WEAK-01"], "초안 약점이 고객에게 샜다"
+    assert "아직 다듬지 않은 문안" not in str(body), "초안 캐치프레이즈가 노출됐다"
+    # 초안 약점을 타고 건강신호까지 딸려오면 안 된다.
+    assert [s["id"] for s in body["healthSigns"]] == ["SIGN-01"]

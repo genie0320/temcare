@@ -115,6 +115,19 @@ def signup(request):
 
     agreed_ids = set(request.data.get("consents") or [])
     required = _required_item_ids()
+
+    # ★ 잠긴 문인 줄 알았는데 문틀이 없으면 그냥 지나간다.
+    #   아래 검사는 "필수 항목 목록에서 빠진 게 있으면 거부"인데, **목록 자체가 비면
+    #   빠진 것도 없어져** 동의 기록이 0건인 채로 가입이 통과한다. 개발 중에는 시드가
+    #   항목을 넣어주므로 아무도 눈치채지 못하고, 배포에서 시드가 안 돌면 동의 증빙이
+    #   전혀 없는 계정이 생긴다. 동의는 소급해서 만들어낼 수 없다(§4).
+    #   그래서 여기서는 열어주지 않고 닫는다 — 이건 사용자 잘못이 아니라 설정 오류다.
+    if not required:
+        return Response(
+            {"detail": "약관 설정이 준비되지 않아 가입을 받을 수 없어요.", "code": "consent_not_configured"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
     missing = required - agreed_ids
     if missing:
         names = list(ConsentItem.objects.filter(id__in=missing).values_list("name", flat=True))

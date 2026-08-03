@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { fetchPartnerClinics, type PartnerClinic } from '../../../core/api/clinic'
 import { openExternal, telHref } from '../../../core/platform/external'
-import { Screen } from '../../components/Screen'
+import { DataScreen } from '../../components/DataScreen'
 import { TopBar } from '../../components/TopBar'
 
 // sc_040 협력 한의원 안내 · 목록 — **깔때기의 출구**(docs/06_decisions.md #8).
@@ -16,11 +16,14 @@ import { TopBar } from '../../components/TopBar'
 // ★ 예약 문의 접수는 2차다. 1차의 전환 수단은 **전화 한 통**이다.
 
 export function ClinicListScreen() {
-  const { data, isPending } = useQuery({ queryKey: ['partner-clinics'], queryFn: fetchPartnerClinics })
-  const clinics = data?.clinics ?? []
+  const query = useQuery({ queryKey: ['partner-clinics'], queryFn: fetchPartnerClinics })
 
   return (
-    <Screen header={<TopBar title="협력 한의원" />}>
+    // ★ 여기가 깔때기의 출구다. 예전에는 불러오기에 실패해도 "준비된 협력 한의원이
+    //   아직 없어요"로 보였다 — 서버가 삐끗한 것뿐인데 사용자에게는 협력 한의원이
+    //   **없는 것**으로 읽힌다. 이 화면에서만큼은 그 오해가 서비스의 목적을 지운다.
+    <DataScreen query={query} errorLabel="협력 한의원 정보를 불러오지 못했어요." header={<TopBar title="협력 한의원" homeLink />}>
+      {({ clinics }) => (
       <div className="flex flex-col gap-lg pb-lg">
         {/* UI요소 1 — 전환 안내 카피. 여기가 약식에서 정밀로 넘어가는 이유를 말하는 자리다. */}
         <div className="flex flex-col gap-sm rounded-xl bg-primary-soft p-md">
@@ -35,9 +38,7 @@ export function ClinicListScreen() {
           </p>
         </div>
 
-        {isPending ? (
-          <p className="py-xl text-center text-body text-muted">불러오는 중…</p>
-        ) : clinics.length === 0 ? (
+        {clinics.length === 0 ? (
           <p className="py-xl text-center text-body text-muted">
             준비된 협력 한의원이 아직 없어요.
           </p>
@@ -45,7 +46,8 @@ export function ClinicListScreen() {
           clinics.map((clinic) => <ClinicCard key={clinic.id} clinic={clinic} />)
         )}
       </div>
-    </Screen>
+      )}
+    </DataScreen>
   )
 }
 

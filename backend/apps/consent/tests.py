@@ -177,3 +177,25 @@ def test_customer_cannot_use_admin_me_endpoint(consent_items):
         format="json",
     )
     assert client.get("/api/accounts/me/").json() == {"authenticated": False}
+
+
+@pytest.mark.django_db
+def test_signup_is_refused_when_no_consent_items_are_configured(db):
+    """★ 동의 항목이 하나도 없으면 가입을 **거부**한다.
+
+    필수 항목 목록이 비면 "빠진 항목"도 없어져서 검사가 통째로 무력화된다.
+    개발 중엔 시드가 항목을 넣어주므로 눈치챌 수 없고, 배포에서 시드가 안 돌면
+    동의 증빙이 전혀 없는 계정이 생긴다 — 동의는 소급해서 만들 수 없다.
+    """
+    ConsentItem.objects.all().delete()
+
+    resp = APIClient().post(
+        "/api/auth/signup/",
+        {"email": "nolock@example.com", "password": "Passw0rd!234", "consents": []},
+        format="json",
+    )
+
+    assert resp.status_code == 503, resp.content
+    assert resp.json()["code"] == "consent_not_configured"
+    assert not User.objects.filter(email="nolock@example.com").exists(), "동의 없이 계정이 만들어졌다"
+    assert UserConsent.objects.count() == 0

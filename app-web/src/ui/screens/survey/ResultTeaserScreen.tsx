@@ -43,7 +43,7 @@ export function ResultTeaserScreen() {
     if (status === 'loading') void bootstrap()
   }, [status, bootstrap])
 
-  const { data, isPending } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['result-teaser', rawValue],
     queryFn: () => fetchResultTeaser(rawValue!),
     enabled: rawValue !== null,
@@ -85,7 +85,17 @@ export function ResultTeaserScreen() {
 
         {isPending ? (
           <p className="text-title text-faint">불러오는 중…</p>
-        ) : data?.found ? (
+        ) : isError || data === undefined ? (
+          // ★ 여기는 카톡 공유로 들어온 사람이 처음 보는 화면이다(결정 #13). 불러오기
+          //   실패를 "콘텐츠가 없다"로 뭉뚱그리면, 우리 사정이 아니라 **그 사람의
+          //   결과가 없는 것**처럼 읽힌다. 실패는 실패라고 말하고 다시 시도를 준다.
+          <div className="flex flex-col items-center gap-sm">
+            <p className="text-body text-muted">결과를 불러오지 못했어요.</p>
+            <Button variant="ghost" inline onClick={() => void refetch()}>
+              다시 시도
+            </Button>
+          </div>
+        ) : data.found ? (
           <div className="flex flex-col items-center gap-sm">
             <span className="rounded-pill bg-primary-soft px-md py-xs text-hint font-bold text-primary-dark">
               {data.typeId}

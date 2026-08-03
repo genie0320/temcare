@@ -20,13 +20,31 @@ interface ScreenProps {
   center?: boolean
   /** 히어로 배경이 화면 끝까지 닿아야 할 때 좌우 여백을 뺀다. */
   bleed?: boolean
+  /** 상단 자리를 아예 비운다. 스플래시처럼 '앱 화면'이 아닌 곳에서만 쓴다. */
+  bare?: boolean
 }
 
-export function Screen({ children, footer, tabBar, header, center = false, bleed = false }: ScreenProps) {
+/** TopBar의 높이. 상단 바가 없는 화면도 같은 만큼 비워 둔다(아래 주석). */
+const TOP_BAR_HEIGHT = 'h-[52px]'
+
+export function Screen({
+  children,
+  footer,
+  tabBar,
+  header,
+  center = false,
+  bleed = false,
+  bare = false,
+}: ScreenProps) {
   return (
     <div className="flex min-h-screen justify-center bg-gray-100">
       <div className="flex w-full max-w-[430px] flex-col bg-bg">
-        {header}
+        {/* ★ 상단 바가 없는 화면도 **같은 높이를 비워 둔다.**
+            안 그러면 상단 바가 있는 화면(가입·동의)과 없는 화면(닉네임·접근권한)을
+            오갈 때 본문이 52px씩 위아래로 튄다. 한 화면씩 보면 멀쩡한데 눌러서
+            넘어가 보면 "매끄럽지 않다"고 느껴지는 원인이 이것이다.
+            디자인을 바꾸는 게 아니라 리듬만 맞추는 것이라 여기 한 곳에서 처리한다. */}
+        {header ?? (bare ? null : <div className={`${TOP_BAR_HEIGHT} shrink-0`} />)}
         <main
           className={[
             'flex flex-1 flex-col overflow-y-auto',
