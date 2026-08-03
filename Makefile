@@ -12,9 +12,14 @@ dev:
 dev-app:
 	python scripts/dev.py app
 
+# 백엔드·프론트를 한 번에 돌린다. CI가 도는 것과 같은 것이라, 여기가 초록이면
+# 다른 컴퓨터에서 작업해도 커밋 시점에 어긋나지 않는다.
 test:
 	cd backend && uv run pytest -q
+	cd app-web && npm run test
 
 lint:
 	cd backend && uv run bandit -r apps config -x '*/migrations/*,*/tests.py' -q
 	cd backend && bash scripts/check_audit_bypass.sh
+	cd app-web && npx tsc -b && npx oxlint
+	cd admin-web && npx tsc -b && npx oxlint
