@@ -14,7 +14,7 @@
 | 서버 상태 | **TanStack Query** | 캐싱·로딩·에러 처리를 직접 안 짜도 된다 |
 | 클라 상태 | **Zustand** (필요한 만큼만) | 전역 상태는 최소로 |
 | 라우팅 | **React Router** | |
-| 테스트 | **pytest + pytest-django** | 프론트 단위 테스트는 1차 범위 밖 |
+| 테스트 | **pytest + pytest-django** · **Vitest + Testing Library**(app-web) | 프론트는 '단위 테스트'가 아니라 **화면 테스트**다 — 구현이 아니라 사용자에게 무엇이 보이는지만 본다(결정 #36). 검토에서 실제로 걸린 것(실패인데 '없음'으로 보이던 것)을 막으려고 2026-08-03에 추가했다 |
 | 백엔드 패키지 관리 | **uv** (결정: 2026-07-31) | `pip`/`venv`보다 빠르고 `pyproject.toml`+lockfile로 재현 가능한 환경을 보장한다. `uv sync`, `uv run manage.py …` 형태로 사용 |
 
 ### Django Admin 방침
@@ -222,4 +222,4 @@ make dev-app                  # 백엔드 + 고객 화면 동시 기동 — 관�
 
 ## 11. 안 하는 것
 
-Django Admin으로 관리자 만들기 · Django Template · JWT를 브라우저 저장소에 두기 · GraphQL · 마이크로서비스 · Storybook · Kubernetes · 프론트 단위 테스트 · React Native for Web · 스테이징 환경 · 관리자 프론트에 RN 전환 제약 걸기
+Django Admin으로 관리자 만들기 · Django Template · JWT를 브라우저 저장소에 두기 · GraphQL · 마이크로서비스 · Storybook · Kubernetes · **프론트 단위 테스트**(컴포넌트 내부·훅 단위. 화면 테스트는 결정 #36으로 채택했으니 혼동하지 말 것) · React Native for Web · 스테이징 환경 · 관리자 프론트에 RN 전환 제약 걸기
