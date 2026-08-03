@@ -75,6 +75,24 @@ def test_dev_login_blocked_when_debug_false():
     assert resp.status_code == 404
 
 
+@pytest.mark.django_db
+def test_dev_login_blocked_in_public_demo_even_though_debug_is_true():
+    """★ 터널 시연(PUBLIC_DEMO)은 DEBUG=True로 돈다.
+
+    DEBUG만 보고 열어두면 시연 링크를 받은 사람 **누구나 비밀번호 없이 관리자**가
+    되어 회원 개인정보를 전부 열 수 있다. 링크는 카톡으로 전달되고 우리가 통제하지
+    못한다. 이 테스트가 없으면 다음 세션이 조용히 되돌려도 아무도 못 잡는다.
+    """
+    _make_admin_user_named("admin@ollacare.local")
+
+    with mock.patch("django.conf.settings.DEBUG", True), mock.patch(
+        "django.conf.settings.PUBLIC_DEMO", True, create=True
+    ):
+        resp = APIClient().post("/api/accounts/dev-login/")
+
+    assert resp.status_code == 404, "공개 데모에서 무인증 관리자 로그인이 열려 있다"
+
+
 def _make_admin_user_named(username):
     role, _ = AdminRole.objects.get_or_create(id="super", defaults={"name": "슈퍼관리자", "sort": 0})
     user = User.objects.create_user(username=username, email=username)

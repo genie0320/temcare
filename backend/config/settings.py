@@ -118,6 +118,22 @@ CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS", default=["http://localhost:5173", "http://localhost:5174"]
 )
 
+# ── 공개 데모 모드 (Cloudflare Tunnel 시연). docs/08_tech_stack.md §10-0 ──────
+#
+# "이 서버가 지금 인터넷에 나가 있다"를 코드가 알아야 위험한 문을 스스로 닫을 수 있다.
+# DEBUG만으로는 구분이 안 된다 — 터널 시연도 DEBUG=True로 돌기 때문이다.
+#
+# ★ 이걸 만든 이유: dev-login은 **비밀번호 없이 관리자가 되는 문**인데 DEBUG에서만
+#   열리도록 해 뒀다. 그런데 터널 시연도 DEBUG라, 주소를 아는 사람은 누구나 관리자가
+#   되어 회원 개인정보를 전부 열 수 있는 상태가 된다. 시연용 링크는 카톡으로 전달되고
+#   그 링크는 우리가 통제하지 못한다.
+PUBLIC_DEMO = env.bool("PUBLIC_DEMO", default=False)
+
+if PUBLIC_DEMO:
+    # 터널 주소는 실행할 때마다 무작위로 바뀌므로(xxx-yyy.trycloudflare.com) 개별
+    # 등록이 불가능하다. 와일드카드는 Django 4+가 지원한다.
+    CSRF_TRUSTED_ORIGINS = [*CSRF_TRUSTED_ORIGINS, "https://*.trycloudflare.com"]
+
 # ── 세션 쿠키. docs/08_tech_stack.md §3 ──────────────────────────
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"

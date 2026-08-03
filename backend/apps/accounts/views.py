@@ -73,6 +73,14 @@ def dev_login(request):
     if not settings.DEBUG:
         return Response({"detail": "DEBUG 모드에서만 사용할 수 있다."}, status=status.HTTP_404_NOT_FOUND)
 
+    # ★ 터널 시연(PUBLIC_DEMO)도 DEBUG=True로 돈다. DEBUG만 보고 열어두면 시연 링크를
+    #   받은 사람 누구나 **비밀번호 없이 관리자**가 되어 회원 개인정보를 전부 열 수 있다.
+    #   시연 링크는 카톡으로 전달되고 우리가 통제하지 못한다. 그래서 여기서 한 겹 더 막는다.
+    if getattr(settings, "PUBLIC_DEMO", False):
+        return Response(
+            {"detail": "공개 데모에서는 사용할 수 없다."}, status=status.HTTP_404_NOT_FOUND
+        )
+
     from .models import User  # noqa: PLC0415 — DEBUG 전용 경로라 지연 임포트로 충분
 
     try:
