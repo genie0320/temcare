@@ -49,6 +49,25 @@ def npm_cmd() -> str:
     return "npm.cmd" if IS_WINDOWS else "npm"
 
 
+# winget으로 막 설치한 직후에는 PATH가 갱신되지 않아 shutil.which가 못 찾는다.
+# 터미널을 껐다 켜라고 하는 대신 표준 설치 위치를 직접 뒤진다 — 다른 세션이
+# 돌고 있어서 창을 못 닫는 상황이 실제로 있었다.
+FALLBACK_PATHS = (
+    r"C:\Program Files (x86)\cloudflared\cloudflared.exe",
+    r"C:\Program Files\cloudflared\cloudflared.exe",
+    os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Links\cloudflared.exe"),
+)
+
+
+def find_cloudflared() -> str | None:
+    found = shutil.which("cloudflared")
+    if found:
+        return found
+    if not IS_WINDOWS:
+        return None
+    return next((p for p in FALLBACK_PATHS if Path(p).exists()), None)
+
+
 def relay(proc: subprocess.Popen, label: str) -> None:
     """자식 프로세스 출력을 흘리면서 터널 주소만 가로채 크게 찍는다."""
     shown = False
@@ -65,11 +84,11 @@ def relay(proc: subprocess.Popen, label: str) -> None:
 
 
 def main() -> int:
-    if shutil.which("cloudflared") is None:
+    cloudflared = find_cloudflared()
+    if cloudflared is None:
         print(
-            "cloudflared 가 없다. 아래로 설치한 뒤 **터미널을 다시 열고** 실행할 것:\n"
+            "cloudflared 가 없다. 아래로 설치한 뒤 실행할 것:\n"
             "\n    winget install --id Cloudflare.cloudflared\n"
-            "\n(설치 직후에는 PATH가 갱신되지 않아 이 오류가 그대로 난다.)"
         )
         return 1
 
@@ -91,7 +110,7 @@ def main() -> int:
 
         print("[demo] Cloudflare 터널 여는 중… (주소가 나오기까지 5~10초)")
         tunnel = subprocess.Popen(
-            ["cloudflared", "tunnel", "--url", f"http://localhost:{APP_PORT}"],
+            [cloudflared, "tunnel", "--url", f"http://localhost:{APP_PORT}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
