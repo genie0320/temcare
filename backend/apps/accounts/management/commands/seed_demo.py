@@ -8,6 +8,7 @@ from django.db import transaction
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
 from apps.consent.models import ConsentItem, TermsDocument, TermsVersion
 from apps.content import models as content
+from apps.content.id_repair import LEGACY_TEM_TYPE_IDS, repair_tem_type_ids
 from apps.support.models import AppSetting
 
 ROLES = [
@@ -25,6 +26,12 @@ EDITOR_RESOURCES = ["adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_
 EDITOR_ACTIONS = ["read", "write", "delete", "publish"]  # 콘텐츠 에디터는 pii_read 없음
 
 # prototype/ollacare.sqlite → 콘텐츠 마스터 모델. docs/07_milestones.md M0 "남은 것".
+#
+# ★ 여기 콘텐츠는 **시연용 밑바닥**이지 정본이 아니다. 정본은 원장 원본 xlsx이고,
+#   그건 import_doctor_content가 넣는다(docs/10_content_import.md). 그래서 시드는
+#   update_or_create가 아니라 **없을 때만 만든다(get_or_create)** — 안 그러면
+#   `make setup`을 다시 돌릴 때마다 원장 콘텐츠와 관리자 화면에서 손본 내용이
+#   프로토타입 시드로 되돌아간다.
 _SIMPLE_TABLES = [
     ("weakness", content.Weakness),
     ("nutrient", content.Nutrient),
@@ -121,6 +128,10 @@ def _seed_content(stdout, style):
         stdout.write(style.WARNING(f"콘텐츠 시드 건너뜀: {db_path} 없음"))
         return
 
+    # ★ 먼저 잘못 붙은 체질 id를 옮긴다(docs/06_decisions.md #38-1). 이미 옮겨진
+    #   DB에서는 아무 일도 하지 않는다.
+    repair_tem_type_ids(log=lambda m: stdout.write(style.WARNING(m)))
+
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     cur = con.cursor()
@@ -129,13 +140,18 @@ def _seed_content(stdout, style):
         # sqlite의 NULL은 blank=True 텍스트 컬럼에 그대로 넣으면 NOT NULL 제약에 걸린다.
         return {k: ("" if v is None else v) for k, v in dict(row).items()}
 
+    def _fix_type_id(value):
+        return LEGACY_TEM_TYPE_IDS.get(value, value)
+
     for table, model in _SIMPLE_TABLES:
         cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _SIMPLE_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
             data = _row_dict(row)
             pk = data.pop("id")
-            model.objects.update_or_create(id=pk, defaults=data)
+            if model is content.TemType:
+                pk = _fix_type_id(pk)
+            model.objects.get_or_create(id=pk, defaults=data)
             n += 1
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
@@ -147,7 +163,7 @@ def _seed_content(stdout, style):
             pk = data.pop("id")
             fk_value = data.pop(fk_col)
             data[fk_field + "_id"] = fk_value
-            model.objects.update_or_create(id=pk, defaults=data)
+            model.objects.get_or_create(id=pk, defaults=data)
             n += 1
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
@@ -155,7 +171,10 @@ def _seed_content(stdout, style):
         cur.execute(f"SELECT * FROM {table}")  # nosec B608 — table은 위 _WEAKNESS_JOIN_TABLES 상수에서만 온다. 외부 입력 아님.
         n = 0
         for row in cur.fetchall():
-            through.objects.get_or_create(**{fk_field + "_id": row[fk_col], "weakness_id": row["weakness_id"]})
+            fk_value = row[fk_col]
+            if through is content.TemTypeWeakness:
+                fk_value = _fix_type_id(fk_value)
+            through.objects.get_or_create(**{fk_field + "_id": fk_value, "weakness_id": row["weakness_id"]})
             n += 1
         stdout.write(style.SUCCESS(f"{table} {n}건"))
 
@@ -171,16 +190,24 @@ def _seed_content(stdout, style):
     n = 0
     for row in cur.fetchall():
         content.TemTypeIllness.objects.get_or_create(
-            tem_type_id=row["type_id"], illness_id=row["illness_id"], pct=row["pct"], sort=row["sort"]
+            tem_type_id=_fix_type_id(row["type_id"]),
+            illness_id=row["illness_id"],
+            pct=row["pct"],
+            sort=row["sort"],
         )
         n += 1
     stdout.write(style.SUCCESS(f"tem_type_illness {n}건"))
 
+    # ★ 큐레이션은 '원장이 무엇을 고르고 어떤 순서로 보일지'다. 실데이터를 넣은 뒤에는
+    #   시드가 이걸 되돌리면 안 된다 — 그 체질에 이미 큐레이션이 있으면 손대지 않는다.
     cur.execute("SELECT * FROM tem_type_curation")
     n = 0
     for row in cur.fetchall():
+        type_id = _fix_type_id(row["type_id"])
+        if content.TemTypeCuration.objects.filter(tem_type_id=type_id, kind=row["kind"]).exists():
+            continue
         content.TemTypeCuration.objects.get_or_create(
-            tem_type_id=row["type_id"],
+            tem_type_id=type_id,
             kind=row["kind"],
             ref_id=row["ref_id"],
             defaults={"polarity": row["polarity"] or "", "sort": row["sort"]},
