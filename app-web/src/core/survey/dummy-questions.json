@@ -1,0 +1,89 @@
+{
+  "id": "dummy-v1",
+  "title": "TEM 문진",
+  "description": "몇 가지 질문에 답하면 64가지 TEM 체질 중 어디에 가까운지 알려드려요.",
+  "estimatedMinutes": 1,
+  "source": "dummy",
+  "questions": [
+    {
+      "id": "q01",
+      "order": 1,
+      "text": "문항 1",
+      "type": "single",
+      "options": [
+        {
+          "id": "q01o1",
+          "label": "지문 1"
+        },
+        {
+          "id": "q01o2",
+          "label": "지문 2"
+        },
+        {
+          "id": "q01o3",
+          "label": "지문 3"
+        },
+        {
+          "id": "q01o4",
+          "label": "지문 4"
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "order": 2,
+      "text": "문항 2",
+      "type": "multi",
+      "options": [
+        {
+          "id": "q02o1",
+          "label": "지문 1"
+        },
+        {
+          "id": "q02o2",
+          "label": "지문 2"
+        },
+        {
+          "id": "q02o3",
+          "label": "지문 3"
+        },
+        {
+          "id": "q02o4",
+          "label": "지문 4"
+        },
+        {
+          "id": "q02o5",
+          "label": "지문 5"
+        },
+        {
+          "id": "q02o6",
+          "label": "지문 6"
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "order": 3,
+      "text": "문항 3",
+      "type": "slider",
+      "options": [
+        {
+          "id": "q03o1",
+          "label": "중단점 1"
+        },
+        {
+          "id": "q03o2",
+          "label": "중단점 2"
+        },
+        {
+          "id": "q03o3",
+          "label": "중단점 3"
+        },
+        {
+          "id": "q03o4",
+          "label": "중단점 4"
+        }
+      ]
+    }
+  ]
+}

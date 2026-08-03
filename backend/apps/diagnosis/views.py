@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from .mapping import raw_to_type_id
 from .models import DiagnosisResult, DiagnosisStat
 from .providers import DiagnosisFailedError, DiagnosisTimeoutError, get_provider
 
@@ -12,12 +13,13 @@ from .providers import DiagnosisFailedError, DiagnosisTimeoutError, get_provider
 def _record_stat(raw_value: int) -> None:
     """익명 집계 +1. docs/06_decisions.md #14 — 식별자를 절대 넣지 않는다.
 
-    ★ TODO(M1): type_id는 지금 raw 값을 그대로 쓴다. content 앱의 tem_type이 생기면
-    raw→체질 매핑 결과의 실제 type_id로 바꾼다.
+    type_id는 mapping.raw_to_type_id로 실제 체질 id('TEM07')를 쓴다. 매핑 규칙이
+    한 곳에만 있어야 통계와 화면이 같은 체질을 가리킨다.
     DiagnosisStat은 AuditedModel이 아니라 순수 통계라 update()를 써도 감사로그에
     구멍이 생기지 않는다(오히려 F() 표현식으로 동시성 안전하게 +1 하는 게 맞다).
     """
-    stat, _ = DiagnosisStat.objects.get_or_create(type_id=str(raw_value), day=timezone.localdate())
+    type_id = raw_to_type_id(raw_value) or str(raw_value)
+    stat, _ = DiagnosisStat.objects.get_or_create(type_id=type_id, day=timezone.localdate())
     DiagnosisStat.objects.filter(pk=stat.pk).update(count=F("count") + 1)  # audit: intentional (DiagnosisStat은 AuditedModel 아님)
 
 
@@ -58,7 +60,11 @@ def save_diagnosis(request):
     result = DiagnosisResult.objects.create(
         user=request.user,
         raw_value=raw,
+        type_id=raw_to_type_id(raw),
         provider=request.data.get("provider", "mock"),
         status="완료",
     )
-    return Response({"id": result.pk, "raw_value": result.raw_value}, status=status.HTTP_201_CREATED)
+    return Response(
+        {"id": result.pk, "raw_value": result.raw_value, "type_id": result.type_id},
+        status=status.HTTP_201_CREATED,
+    )

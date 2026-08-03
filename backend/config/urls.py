@@ -18,8 +18,16 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health, name="health"),
     path("api/diagnosis/", include("apps.diagnosis.urls")),
+    # 관리자 인증. 고객과 경로를 나눈 이유는 apps/accounts/customer_views.py 상단 참고.
     path("api/accounts/", include("apps.accounts.urls")),
+    path("api/auth/", include("apps.accounts.customer_urls")),
+    path("api/consent/", include("apps.consent.urls")),
+    # 콘텐츠 마스터 CRUD는 관리자 전용. 고객이 읽는 결과는 /api/result/*로 분리했다.
     path("api/content/", include("apps.content.urls")),
+    path("api/result/", include("apps.content.customer_urls")),
+    # 협력 한의원(깔때기 출구). 관리자 CRUD와 고객 조회를 같은 이유로 나눈다.
+    path("api/", include("apps.clinic.urls")),
+    path("api/partner-clinics/", include("apps.clinic.customer_urls")),
 ]
 
 if settings.DEBUG:

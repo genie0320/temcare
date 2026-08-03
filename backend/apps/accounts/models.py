@@ -19,8 +19,22 @@ class User(AbstractUser, AuditedModel):
         ("탈퇴", "탈퇴"),
     ]
 
+    GENDER_CHOICES = [("남성", "남성"), ("여성", "여성")]
+
     nickname = models.CharField(max_length=50, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="정상")
+
+    # 문진 전 입력(PPT SURVEY-01). schema.user에는 없고 화면설계서에서 채택했다 —
+    # docs/06_decisions.md #25. 민감정보는 아니지만 개인정보이므로 처리방침 수집항목에
+    # 반영해야 하고, 비로그인 문진 단계에서는 클라이언트에만 두었다가 가입 시 전송한다.
+    birth_date = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
+    # 키·몸무게는 화면설계서('홈 > TEM문진', '더보기 > 계정관리')에 있고 명세서 v5에는
+    # 없다. 설계서를 따르기로 확정했다(2026-08-03). 1차에서 이 값을 쓰는 화면은 없다 —
+    # 체형 게이지는 사용자 입력이 아니라 tem_type.body_min/max에서 온다.
+    height_cm = models.PositiveSmallIntegerField(null=True, blank=True)
+    weight_kg = models.PositiveSmallIntegerField(null=True, blank=True)
+
     dormant_at = models.DateTimeField(null=True, blank=True)
     withdraw_at = models.DateTimeField(null=True, blank=True)
     purge_due_at = models.DateTimeField(null=True, blank=True)

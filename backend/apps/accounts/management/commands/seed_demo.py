@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.accounts.models import AdminPermission, AdminProfile, AdminRole, User
+from apps.consent.models import ConsentItem, TermsDocument, TermsVersion
 from apps.content import models as content
 from apps.support.models import AppSetting
 
@@ -58,6 +59,60 @@ _ARTICLE_LINK_TABLES = [
     ("article_point", content.ArticlePoint, "point_id", "point", content.Point),
     ("article_product", content.ArticleProduct, "product_id", "product", content.Product),
 ]
+
+
+# ── 약관 · 동의 (sc_092) ─────────────────────────────────────────────
+# 항목 구성은 명세서 v5 sc_092의 UI요소 행 그대로다.
+# PPT slide 11에는 '개인정보 제3자 제공 동의'도 있으나 "[확인필요] 실제 제3자 제공
+# 발생 여부 확정 후 유지/삭제"로 미확정이고 명세서 v5에는 없어 넣지 않았다(명세서 우선).
+TERMS_DOCUMENTS = [
+    ("tos", "서비스 이용약관", 0),
+    ("privacy", "개인정보처리방침", 1),
+    ("marketing", "마케팅 정보 수신", 2),
+]
+
+# ★ 실제 약관 문안이 아니다. 법률 문서를 임의로 지어내지 않는다 —
+#   문진 더미 문항과 같은 원칙(docs/06_decisions.md #24)이다. 시행일자도 미확정(📌).
+_PLACEHOLDER_BODY = "[미작성] 실제 약관 문안이 들어갈 자리입니다. 법무 검토된 원문으로 교체해주세요."
+
+CONSENT_ITEMS = [
+    # (id, 이름, 필수, 민감정보, 채널, 문서, 순서)
+    ("tos", "이용약관 동의", True, False, "", "tos", 0),
+    ("privacy", "개인정보 수집·이용 동의", True, False, "", "privacy", 1),
+    ("sensitive", "민감정보(건강정보) 수집·이용 동의", True, True, "", "privacy", 2),
+    ("age14", "만 14세 이상입니다", True, False, "", None, 3),
+    ("mkt", "마케팅 정보 수신 동의", False, False, "push", "marketing", 4),
+]
+
+
+def _seed_consent(stdout, style):
+    for doc_id, name, sort in TERMS_DOCUMENTS:
+        TermsDocument.objects.update_or_create(id=doc_id, defaults={"name": name, "sort": sort})
+        TermsVersion.objects.update_or_create(
+            document_id=doc_id,
+            version="v0.1",
+            defaults={
+                "body": _PLACEHOLDER_BODY,
+                "effective_at": "2026-01-01",
+                "status": "게시",
+                "updated_by": "seed_demo",
+            },
+        )
+
+    for item_id, name, required, sensitive, channel, doc_id, sort in CONSENT_ITEMS:
+        ConsentItem.objects.update_or_create(
+            id=item_id,
+            defaults={
+                "name": name,
+                "required": required,
+                "is_sensitive": sensitive,
+                "channel": channel,
+                "document_id": doc_id,
+                "sort": sort,
+                "status": "게시",
+            },
+        )
+    stdout.write(style.SUCCESS(f"consent_item {len(CONSENT_ITEMS)}건 · terms {len(TERMS_DOCUMENTS)}건 (약관 문안은 placeholder)"))
 
 
 def _seed_content(stdout, style):
@@ -178,4 +233,5 @@ class Command(BaseCommand):
         )
         self.stdout.write(self.style.SUCCESS("app_config: diagnosis.provider = mock"))
 
+        _seed_consent(self.stdout, self.style)
         _seed_content(self.stdout, self.style)

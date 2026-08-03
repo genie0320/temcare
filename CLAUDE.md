@@ -73,6 +73,7 @@ DiagnosisProvider (interface)
 |---|---|
 | `spec/temcare_admin-screen-spec_v3.xlsx` | 관리자 화면 정본. 시트2에 화면별 UI 요소, 시트3에 변경 근거 |
 | `spec/temcare_customer-screen-spec_v5.xlsx` | 고객 화면 정본. 동일 구조 |
+| `spec/ollacare_mobile-front-review_v3.pptx` | **고객 화면설계서(와이어프레임+주석).** M2 화면의 시각적 기준. 단 2026-07-23판이라 7/31 결정들이 빠져 있다 — **채택 범위는 `docs/06_decisions.md` #25에 고정** |
 | `prototype/admin_prototype.html` | **관리자 화면의 시각적·동작 기준.** 브라우저로 열면 실제로 CRUD가 동작한다(sql.js). 새 관리자 화면은 이 룩앤필과 상호작용을 따를 것 |
 | `prototype/prescription_stream_mockup.html` | **고객 처방 스트림의 디자인 기준** |
 | `prototype/ollacare.sqlite` | 시드 데이터. 콘텐츠 마스터 구조를 실제 데이터로 확인할 때 |
