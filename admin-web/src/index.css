@@ -266,6 +266,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 table.ds-map { width: 100%; border-collapse: collapse; }
 table.ds-map th, table.ds-map td { font-size: 12.5px; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 
+/* 템라이프(adm_009) 뉴스피드형 목록 — 큰 이미지 카드 그리드 */
+.life-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 4px; }
+.life-card { display: block; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: box-shadow .12s, transform .12s; }
+.life-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.life-card-img { width: 100%; aspect-ratio: 4 / 3; background: var(--surface-2); overflow: hidden; }
+.life-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.life-card-img .ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 30px; }
+.life-card-body { padding: 12px 14px 14px; }
+.life-card-body .pill { margin-bottom: 8px; }
+.life-card-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.life-card-foot { display: flex; align-items: center; justify-content: space-between; }
 
 /* 상세화면 '다른 템콘텐츠 연결' — 8종을 한 카드에 촘촘히 배치 */
 .life-links-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }

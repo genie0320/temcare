@@ -13,6 +13,8 @@ import { HerbDetailPage } from './pages/HerbDetailPage'
 import { HerbListPage } from './pages/HerbListPage'
 import { IllnessDetailPage } from './pages/IllnessDetailPage'
 import { IllnessListPage } from './pages/IllnessListPage'
+import { LifeArticleDetailPage } from './pages/LifeArticleDetailPage'
+import { LifeArticleListPage } from './pages/LifeArticleListPage'
 import { LoginPage } from './pages/LoginPage'
 import { NutrientDetailPage } from './pages/NutrientDetailPage'
 import { NutrientListPage } from './pages/NutrientListPage'
@@ -72,6 +74,8 @@ function App() {
           <Route path="/content/products/:id" element={<ProductDetailPage />} />
           <Route path="/content/articles" element={<ArticleListPage />} />
           <Route path="/content/articles/:id" element={<ArticleDetailPage />} />
+          <Route path="/content/life-articles" element={<LifeArticleListPage />} />
+          <Route path="/content/life-articles/:id" element={<LifeArticleDetailPage />} />
           <Route path="/system/audit-logs" element={<AuditLogPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>

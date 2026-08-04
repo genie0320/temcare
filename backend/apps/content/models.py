@@ -406,3 +406,78 @@ class Product(MasterModel):
 
     def __str__(self):
         return self.name
+
+
+# ── 템라이프(뉴스피드형 콘텐츠) ─────────────────────────────────────
+class LifeArticle(MasterModel):
+    """schema 미신설 상태였던 tem_daily를 2차 착수 시점에 신설(docs/06_decisions.md #11 갱신).
+
+    요법관리(article)와 달리 약점 태그로 자동 노출되지 않는다 — 카테고리 피드로 큐레이션한다.
+    """
+
+    CATEGORY_CHOICES = [
+        ("체온", "체온"),
+        ("먹고싸고", "먹고싸고"),
+        ("멘탈", "멘탈"),
+        ("체질이야기", "체질이야기"),
+    ]
+
+    id = models.CharField(max_length=20, primary_key=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="체온")
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True)  # HTML, 리치에디터
+    image = models.CharField(max_length=255, blank=True)  # 키비주얼. docs/04_design_system.md §4 — base64 인라인 금지.
+    video = models.CharField(max_length=255, blank=True)
+
+    class Meta(MasterModel.Meta):
+        db_table = "tem_daily"
+
+    def __str__(self):
+        return self.title
+
+
+class LifeArticleLink(models.Model):
+    """템라이프 글 하단의 '다른 템콘텐츠' 연결 — 콘텐츠 마스터 8종 전체에서 선택 가능하다.
+
+    TemTypeCuration과 같은 kind+ref_id 방식을 쓰지만 목적은 다르다. TemTypeCuration은
+    처방 노출을 수동으로 제어하는 유일한 예외 지점(CLAUDE.md §2-4)이고, 이건 글 하단의
+    '더 읽어보기' 편집 링크일 뿐 처방 스트림 노출 로직과는 무관하다.
+    """
+
+    KIND_CHOICES = [
+        ("nutrient", "영양소"),
+        ("herb", "약재"),
+        ("food", "식품군"),
+        ("point", "혈자리"),
+        ("health_sign", "건강신호"),
+        ("illness", "예측질환"),
+        ("product", "제품"),
+        ("article", "요법관리"),
+    ]
+
+    life_article = models.ForeignKey(LifeArticle, on_delete=models.CASCADE, related_name="content_links")
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    ref_id = models.CharField(max_length=20)
+    sort = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "tem_life_content_link"
+        ordering = ["sort"]
+        constraints = [
+            models.UniqueConstraint(fields=["life_article", "kind", "ref_id"], name="uniq_life_article_link"),
+        ]
+
+
+class LifeArticleRelated(models.Model):
+    """관련 기사 — 템라이프끼리의 자기참조(단방향). schema 상 tem_related에 해당."""
+
+    from_article = models.ForeignKey(LifeArticle, on_delete=models.CASCADE, related_name="related_links")
+    to_article = models.ForeignKey(LifeArticle, on_delete=models.CASCADE, related_name="+")
+    sort = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "tem_related"
+        ordering = ["sort"]
+        constraints = [
+            models.UniqueConstraint(fields=["from_article", "to_article"], name="uniq_life_article_related"),
+        ]

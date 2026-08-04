@@ -14,6 +14,7 @@ router.register("health-signs", views.HealthSignViewSet, basename="health-sign")
 router.register("illnesses", views.IllnessViewSet, basename="illness")
 router.register("products", views.ProductViewSet, basename="product")
 router.register("articles", views.ArticleViewSet, basename="article")
+router.register("life-articles", views.LifeArticleViewSet, basename="life-article")
 
 urlpatterns = router.urls + [
     path("tem-type-candidates/nutrient-cards/", views.NutrientCardCandidatesView.as_view(), name="tem-type-nutrient-candidates"),

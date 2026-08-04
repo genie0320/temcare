@@ -23,6 +23,10 @@ const NAV = [
     ],
   },
   {
+    group: '템라이프',
+    items: [{ to: '/content/life-articles', icon: '📰', label: '템라이프 마스터' }],
+  },
+  {
     group: '시스템',
     items: [
       { to: '/system/audit-logs', icon: '🧾', label: '감사로그 · 접속기록' },

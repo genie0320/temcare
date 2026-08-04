@@ -17,6 +17,7 @@ from apps.content.models import (
     HealthSign,
     HerbCard,
     Illness,
+    LifeArticle,
     Nutrient,
     NutrientCard,
     Point,
@@ -99,6 +100,11 @@ MASTERS = [
     MasterSpec(
         "article", "articles", "adm_024", "ART-01",
         {"kind": "식이", "title": "위장마사지", "body": "<p>본문</p>"}, model=Article,
+    ),
+    MasterSpec(
+        "life_article", "life-articles", "adm_009", "LIFE-01",
+        {"category": "체온", "title": "찬 음료 대신 따뜻한 차", "body": "<p>본문</p>"},
+        weakness_required=False, model=LifeArticle,
     ),
 ]
 
@@ -524,6 +530,103 @@ def test_article_update_replaces_references_not_appends():
     resp = client.patch(f"/api/content/articles/{created['id']}/", {"food_ids": [f2.id]}, format="json")
     assert resp.status_code == 200
     assert resp.json()["food_ids"] == [f2.id]
+
+
+# ── 템라이프(adm_009) 고유: 콘텐츠 마스터 8종 연결 + 관련 기사 ────
+@pytest.mark.django_db
+def test_life_article_create_with_all_content_link_kinds():
+    """8종 전부 kind+ref_id로 저장되고, 서로 다른 kind끼리 섞여도 구분된다."""
+    client = _client(_make_admin("editor", [("adm_009", "read"), ("adm_009", "write")]))
+    nutrient = Nutrient.objects.create(id="NUT-01", name="비타민D")
+    food = Food.objects.create(id="FOOD-01", foods="생강차")
+    point = Point.objects.create(id="ACU-01", name="합곡")
+    sign = HealthSign.objects.create(id="SIG-01", name="척추/관절이 아프다")
+    illness = Illness.objects.create(id="ILL-01", name="소화기질환")
+    product = Product.objects.create(id="PRD-01", name="생강 온열팩")
+    article = Article.objects.create(id="ART-01", kind="식이", title="위장마사지")
+
+    resp = client.post(
+        "/api/content/life-articles/",
+        {
+            "category": "체온",
+            "title": "겨울철 몸 데우는 법",
+            "body": "<p>본문</p>",
+            "nutrient_ids": [nutrient.id],
+            "food_ids": [food.id],
+            "point_ids": [point.id],
+            "health_sign_ids": [sign.id],
+            "illness_ids": [illness.id],
+            "product_ids": [product.id],
+            "article_ids": [article.id],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.content
+    body = resp.json()
+    assert body["id"] == "LIFE-01"
+    assert body["nutrient_ids"] == [nutrient.id]
+    assert body["food_ids"] == [food.id]
+    assert body["point_ids"] == [point.id]
+    assert body["health_sign_ids"] == [sign.id]
+    assert body["illness_ids"] == [illness.id]
+    assert body["product_ids"] == [product.id]
+    assert body["article_ids"] == [article.id]
+    assert body["herb_ids"] == []
+
+
+@pytest.mark.django_db
+def test_life_article_update_replaces_content_links_not_appends():
+    """kind별로 나뉜 폴리모픽 테이블이라, 한 kind를 교체해도 다른 kind가 지워지면 안 된다."""
+    client = _client(_make_admin("editor", [("adm_009", "read"), ("adm_009", "write")]))
+    f1 = Food.objects.create(id="FOOD-01", foods="생강차")
+    f2 = Food.objects.create(id="FOOD-02", foods="대추차")
+    point = Point.objects.create(id="ACU-01", name="합곡")
+    created = client.post(
+        "/api/content/life-articles/",
+        {"category": "체온", "title": "T", "food_ids": [f1.id], "point_ids": [point.id]},
+        format="json",
+    ).json()
+
+    resp = client.patch(f"/api/content/life-articles/{created['id']}/", {"food_ids": [f2.id]}, format="json")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["food_ids"] == [f2.id]
+    assert resp.json()["point_ids"] == [point.id], "food_ids만 바꿨는데 point 연결이 사라졌다"
+
+
+@pytest.mark.django_db
+def test_life_article_related_articles_are_self_referential_and_replace_not_append():
+    client = _client(_make_admin("editor", [("adm_009", "read"), ("adm_009", "write")]))
+    a1 = client.post(
+        "/api/content/life-articles/", {"category": "체온", "title": "글1"}, format="json"
+    ).json()
+    a2 = client.post(
+        "/api/content/life-articles/", {"category": "먹고싸고", "title": "글2"}, format="json"
+    ).json()
+    a3 = client.post(
+        "/api/content/life-articles/", {"category": "멘탈", "title": "글3"}, format="json"
+    ).json()
+
+    resp = client.patch(
+        f"/api/content/life-articles/{a1['id']}/", {"related_article_ids": [a2["id"]]}, format="json"
+    )
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["related_article_ids"] == [a2["id"]]
+
+    resp = client.patch(
+        f"/api/content/life-articles/{a1['id']}/", {"related_article_ids": [a3["id"]]}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["related_article_ids"] == [a3["id"]], "교체가 아니라 누적됐다"
+
+
+@pytest.mark.django_db
+def test_life_article_list_exposes_image_for_feed_thumbnail():
+    """뉴스피드형 목록이라 image가 목록 화면에도 노출돼야 한다(다른 마스터와 다른 점)."""
+    client = _client(_make_admin("editor", [("adm_009", "read")]))
+    LifeArticle.objects.create(id="LIFE-01", category="체온", title="글", image="life/x.png")
+
+    row = client.get("/api/content/life-articles/").json()[0]
+    assert row["image"] == "life/x.png"
 
 
 # ── 자동완성 옵션 ────────────────────────────────────────────────

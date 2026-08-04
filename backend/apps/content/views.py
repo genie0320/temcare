@@ -31,6 +31,9 @@ from .models import (
     HerbCardWeakness,
     Illness,
     IllnessWeakness,
+    LifeArticle,
+    LifeArticleLink,
+    LifeArticleRelated,
     Nutrient,
     NutrientCard,
     NutrientCardWeakness,
@@ -55,6 +58,8 @@ from .serializers import (
     IllnessDetailSerializer,
     IllnessListSerializer,
     IllnessOptionSerializer,
+    LifeArticleDetailSerializer,
+    LifeArticleListSerializer,
     NutrientDetailSerializer,
     NutrientListSerializer,
     PointDetailSerializer,
@@ -475,6 +480,65 @@ class ArticleViewSet(MasterViewSet):
                 related_field=related_field,
                 target_ids=self.request.data.get(key) or [],
             )
+
+
+class LifeArticleViewSet(MasterViewSet):
+    """템라이프 마스터(adm_009). 2차 착수 시점에 신설(docs/06_decisions.md #11 갱신).
+
+    요법관리와 달리 약점 태그로 자동 노출되지 않는다 — 카테고리 피드로 큐레이션한다.
+    참고정보는 콘텐츠 마스터 8종 전체(kind+ref_id 폴리모픽) + 템라이프끼리의 관련 기사.
+    """
+
+    resource = "adm_009"
+    queryset = LifeArticle.objects.all()
+    id_prefix = "LIFE-"
+    list_serializer_class = LifeArticleListSerializer
+    detail_serializer_class = LifeArticleDetailSerializer
+    search_fields = ["title", "id", "body"]
+    filter_fields = {"category": "category"}
+    weakness_required = False
+
+    # 다른 템콘텐츠 연결: 요청 키 → LifeArticleLink.kind 값
+    CONTENT_LINK_KINDS = {
+        "nutrient_ids": "nutrient",
+        "herb_ids": "herb",
+        "food_ids": "food",
+        "point_ids": "point",
+        "health_sign_ids": "health_sign",
+        "illness_ids": "illness",
+        "product_ids": "product",
+        "article_ids": "article",
+    }
+
+    def sync_children(self, instance):
+        data = self.request.data
+        for key, kind in self.CONTENT_LINK_KINDS.items():
+            if key not in data:
+                continue
+            self._sync_content_link(instance, kind, data.get(key) or [])
+        if "related_article_ids" in data:
+            sync_relation(
+                instance,
+                through=LifeArticleRelated,
+                parent_field="from_article",
+                related_field="to_article",
+                target_ids=data.get("related_article_ids") or [],
+            )
+
+    def _sync_content_link(self, instance, kind, target_ids):
+        """LifeArticleLink는 kind로 나뉘는 폴리모픽 관계라 sync_relation()을 그대로 못 쓴다
+        (parent_field 하나만으로는 kind별 구분이 안 된다). 인스턴스 단위 delete()/create()
+        원칙은 동일하게 지킨다(QuerySet.delete()/bulk_* 금지 — docs/08_tech_stack.md §4).
+        """
+        current = {str(v) for v in instance.content_links.filter(kind=kind).values_list("ref_id", flat=True)}
+        target = {str(v) for v in (target_ids or [])}
+        removed, added = current - target, target - current
+        for ref_id in removed:
+            LifeArticleLink.objects.get(life_article=instance, kind=kind, ref_id=ref_id).delete()
+        for ref_id in added:
+            LifeArticleLink.objects.create(life_article=instance, kind=kind, ref_id=ref_id)
+        if removed or added:
+            audit.record_relation_change(instance, f"{kind}_content_links", current, target)
 
 
 _MAX_UPLOAD_BYTES = 5 * 1024 * 1024

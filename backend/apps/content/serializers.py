@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
-from .models import Article, Food, HealthSign, Herb, Illness, Nutrient, Point, Product, TemType, Weakness
+from .models import (
+    Article,
+    Food,
+    HealthSign,
+    Herb,
+    Illness,
+    LifeArticle,
+    Nutrient,
+    Point,
+    Product,
+    TemType,
+    Weakness,
+)
 
 
 class WeaknessListSerializer(serializers.ModelSerializer):
@@ -406,6 +418,86 @@ class ArticleDetailSerializer(serializers.ModelSerializer):
 
     def get_product_ids(self, obj):
         return list(obj.linked_products.order_by("sort").values_list("id", flat=True))
+
+
+class LifeArticleListSerializer(serializers.ModelSerializer):
+    """목록 화면(adm_009). 뉴스피드형 — 큰 이미지가 핵심이라 image를 목록에도 노출한다."""
+
+    class Meta:
+        model = LifeArticle
+        fields = ["id", "category", "title", "image", "status", "updated_at"]
+
+
+class LifeArticleDetailSerializer(serializers.ModelSerializer):
+    """상세 화면(adm_009). 다른 템콘텐츠 연결(8종)·관련 기사는 모델 필드가 아니므로 읽기는
+    SerializerMethodField, 쓰기는 뷰(LifeArticleViewSet.sync_children)에서 처리한다.
+    """
+
+    nutrient_ids = serializers.SerializerMethodField()
+    herb_ids = serializers.SerializerMethodField()
+    food_ids = serializers.SerializerMethodField()
+    point_ids = serializers.SerializerMethodField()
+    health_sign_ids = serializers.SerializerMethodField()
+    illness_ids = serializers.SerializerMethodField()
+    product_ids = serializers.SerializerMethodField()
+    article_ids = serializers.SerializerMethodField()
+    related_article_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LifeArticle
+        fields = [
+            "id",
+            "category",
+            "title",
+            "body",
+            "image",
+            "video",
+            "status",
+            "sort",
+            "nutrient_ids",
+            "herb_ids",
+            "food_ids",
+            "point_ids",
+            "health_sign_ids",
+            "illness_ids",
+            "product_ids",
+            "article_ids",
+            "related_article_ids",
+            "created_at",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "updated_by"]
+
+    def _link_ids(self, obj, kind):
+        return list(obj.content_links.filter(kind=kind).order_by("sort").values_list("ref_id", flat=True))
+
+    def get_nutrient_ids(self, obj):
+        return self._link_ids(obj, "nutrient")
+
+    def get_herb_ids(self, obj):
+        return self._link_ids(obj, "herb")
+
+    def get_food_ids(self, obj):
+        return self._link_ids(obj, "food")
+
+    def get_point_ids(self, obj):
+        return self._link_ids(obj, "point")
+
+    def get_health_sign_ids(self, obj):
+        return self._link_ids(obj, "health_sign")
+
+    def get_illness_ids(self, obj):
+        return self._link_ids(obj, "illness")
+
+    def get_product_ids(self, obj):
+        return self._link_ids(obj, "product")
+
+    def get_article_ids(self, obj):
+        return self._link_ids(obj, "article")
+
+    def get_related_article_ids(self, obj):
+        return list(obj.related_links.order_by("sort").values_list("to_article_id", flat=True))
 
 
 class ProductListSerializer(serializers.ModelSerializer):
