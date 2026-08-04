@@ -17,6 +17,12 @@ class AuditLog(models.Model):
         # "권한 없는 접근이 감사로그에 남는가". 데이터 변경은 없었지만 보안 사건이므로
         # 같은 장부에 남긴다 — 내부자의 권한 밖 시도를 사후에 추적할 수 있어야 한다.
         ("deny", "deny"),
+        # 개인정보 열람 이력(access_log)을 **조회한** 행위. deny와 같은 이유로 여기 남긴다 —
+        # 데이터는 안 바뀌었지만 '누가 접속기록을 들여다봤나'는 추적돼야 한다.
+        # ★ access_log가 아니라 audit_log에 남기는 것은 의도된 선택이다(docs/11_audit_viewer.md §7):
+        #   access_log에 남기면 "내가 접속기록을 봤다"로 장부가 채워져 정작 봐야 할 기록이 묻히고,
+        #   access_log는 열람 사유가 필수라 진단 화면을 열 때마다 사유를 타이핑해야 한다.
+        ("read", "read"),
     ]
 
     actor_id = models.CharField(max_length=64, blank=True, null=True)

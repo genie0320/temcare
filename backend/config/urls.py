@@ -22,6 +22,8 @@ urlpatterns = [
     path("api/accounts/", include("apps.accounts.urls")),
     path("api/auth/", include("apps.accounts.customer_urls")),
     path("api/consent/", include("apps.consent.urls")),
+    # 감사로그·접속기록 조회(adm_028). 조회 전용이고 Super Admin만 — apps/audit/views.py 참고.
+    path("api/audit/", include("apps.audit.urls")),
     # 콘텐츠 마스터 CRUD는 관리자 전용. 고객이 읽는 결과는 /api/result/*로 분리했다.
     path("api/content/", include("apps.content.urls")),
     path("api/result/", include("apps.content.customer_urls")),

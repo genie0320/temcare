@@ -37,6 +37,31 @@ def record_denied(resource: str, action: str, path: str = "") -> None:
     )
 
 
+def record_access_log_view(*, filters: dict, returned: int) -> None:
+    """개인정보 열람 이력(access_log)을 **조회한 행위**를 audit_log에 남긴다.
+
+    감사로그 화면(adm_028)의 '개인정보 열람' 탭이 열릴 때마다 호출된다.
+    docs/11_audit_viewer.md §7 — access_log가 아니라 audit_log에 남기는 이유:
+
+    - access_log에 남기면 "내가 접속기록을 봤다"는 기록이 장부를 채워 정작 봐야 할
+      회원 개인정보 열람 기록이 묻힌다.
+    - access_log는 purpose(열람 사유)가 필수라, 진단 화면을 열 때마다 사유를 타이핑해야 한다.
+
+    audit_log에 행위로 남기면 추적은 되면서 접속기록 장부는 깨끗하게 유지된다.
+    정식 운영 전 법무 검토 때 access_log로 승격할지 다시 본다.
+
+    ★ filters에는 값이 그대로 실린다. 실리는 것은 회원/운영자 **pk와 날짜**뿐이고,
+      이름·이메일 같은 원문은 애초에 필터 대상이 아니다(#32 마스킹 대상과 다르다).
+    """
+    record(
+        action="read",
+        target_table="access_log",
+        target_id=None,
+        before=None,
+        after={"filters": filters, "returned": returned},
+    )
+
+
 def record_relation_change(instance, relation_label: str, before_ids, after_ids) -> None:
     """관계(약점 태그·큐레이션 등) 변경을 부모 레코드의 감사 기록으로 남긴다.
 

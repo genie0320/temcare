@@ -144,6 +144,7 @@ td.col-no, th.col-no { width: 52px; color: var(--muted); font-variant-numeric: t
 .pill { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
 .pill.a { background: var(--primary-soft); color: var(--primary-dark); }
 .pill.b { background: var(--info-soft); color: var(--info); }
+.pill.d { background: #eef0fb; color: #4b4fb0; }
 
 .form-grid { display: grid; grid-template-columns: 145px 1fr; gap: 0; }
 .form-row { display: contents; }
@@ -264,3 +265,31 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 /* 디자인 시스템 카탈로그(/system/design) 전용 */
 table.ds-map { width: 100%; border-collapse: collapse; }
 table.ds-map th, table.ds-map td { font-size: 12.5px; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+
+
+/* 상세화면 '다른 템콘텐츠 연결' — 8종을 한 카드에 촘촘히 배치 */
+.life-links-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+@media (max-width: 720px) { .life-links-grid { grid-template-columns: 1fr; } }
+
+/* 감사로그·접속기록(adm_028)
+   ★ 로그는 가공하지 않고 원문 그대로 보여준다 — 등폭 글꼴에 줄바꿈만 허용한다.
+   docs/11_audit_viewer.md §3 */
+.tabs-bar { margin-bottom: 16px; }
+.logdump { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0; max-height: 420px; overflow: auto; color: var(--text); }
+/* 목록 셀 안에서는 두 줄까지만. 전문은 행을 눌러 상세에서 본다. */
+.logdump.inline { padding: 6px 8px; font-size: 11.5px; max-height: 3.4em; overflow: hidden; }
+.logdiff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.logdiff h4 { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+@media (max-width: 900px) { .logdiff { grid-template-columns: 1fr; } }
+
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.statbox { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); padding: 12px 14px; }
+.statbox .k { font-size: 12.5px; color: var(--muted); }
+.statbox .v { font-size: 20px; font-weight: 700; margin-top: 4px; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+.statbox .s { font-size: 12px; color: var(--faint); margin-top: 4px; }
+
+.logfilter .lab { font-size: 12.5px; color: var(--muted); }
+.logfilter input[type=date], .logfilter input[type=text] {
+  width: auto; max-width: 170px; padding: 7px 10px; font-size: 13.5px; font-family: inherit;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+}

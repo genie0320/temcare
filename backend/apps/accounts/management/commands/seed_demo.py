@@ -19,8 +19,12 @@ ROLES = [
     ("viewer", "뷰어", 4),
 ]
 
-# 관리자 화면(M1)이 붙을 때마다 resource id를 여기 추가한다.
-SUPER_RESOURCES = ["demo", "adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_026", "adm_007a", "adm_007b", "adm_027", "adm_024"]
+# 관리자 화면이 붙을 때마다 resource id를 여기 추가한다.
+#
+# ★ adm_028(감사로그·접속기록)은 **SUPER에만** 있다. 명세서가 "Super Admin만(조회 전용)"이고,
+#   access_log 조회에 필요한 pii_read가 EDITOR_ACTIONS에 없어서 이중으로 막힌다
+#   (CLAUDE.md §2-1 "개인정보 열람 권한은 콘텐츠 편집 권한과 분리한다").
+SUPER_RESOURCES = ["demo", "adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_026", "adm_007a", "adm_007b", "adm_027", "adm_024", "adm_028"]
 SUPER_ACTIONS = ["read", "write", "delete", "publish", "pii_read"]
 EDITOR_RESOURCES = ["adm_003", "adm_002", "adm_022", "adm_023", "adm_025", "adm_026", "adm_007a", "adm_007b", "adm_027", "adm_024"]
 EDITOR_ACTIONS = ["read", "write", "delete", "publish"]  # 콘텐츠 에디터는 pii_read 없음

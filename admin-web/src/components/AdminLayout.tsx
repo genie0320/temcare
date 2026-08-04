@@ -24,7 +24,10 @@ const NAV = [
   },
   {
     group: '시스템',
-    items: [{ to: '/system/design', icon: '🎨', label: '디자인 시스템' }],
+    items: [
+      { to: '/system/audit-logs', icon: '🧾', label: '감사로그 · 접속기록' },
+      { to: '/system/design', icon: '🎨', label: '디자인 시스템' },
+    ],
   },
 ]
 

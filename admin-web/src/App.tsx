@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AdminLayout } from './components/AdminLayout'
 import { ArticleDetailPage } from './pages/ArticleDetailPage'
 import { ArticleListPage } from './pages/ArticleListPage'
+import { AuditLogPage } from './pages/AuditLogPage'
 import { DesignSystemPage } from './pages/DesignSystemPage'
 import { FoodDetailPage } from './pages/FoodDetailPage'
 import { FoodListPage } from './pages/FoodListPage'
@@ -71,6 +72,7 @@ function App() {
           <Route path="/content/products/:id" element={<ProductDetailPage />} />
           <Route path="/content/articles" element={<ArticleListPage />} />
           <Route path="/content/articles/:id" element={<ArticleDetailPage />} />
+          <Route path="/system/audit-logs" element={<AuditLogPage />} />
           <Route path="/system/design" element={<DesignSystemPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
